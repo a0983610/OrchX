@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 using Antigravity02.AIClient;
@@ -98,6 +99,33 @@ namespace Antigravity02.Agents
                 }
             );
 
+            yield return client.CreateFunctionDeclaration(
+                "read_skills",
+                "讀取 AI_Workspace/.agent/skills 路徑下所有子資料夾內的 SKILL.md，擷取 name 與 description，並以 JSON 結構回傳。",
+                new
+                {
+                    type = "object",
+                    properties = new { }, // 不再需要外部傳入 subPath
+                    required = new string[] { }
+                }
+            );
+
+            yield return client.CreateFunctionDeclaration(
+                "write_skill",
+                "建立一個新的技能，或者覆蓋已存在的同名技能。會自動在 AI_Workspace/.agent/skills 底下建立以 skillName 為名的資料夾，並寫入/覆蓋 SKILL.md 檔案（包含標準格式）。",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        skillName = new { type = "string", description = "技能的資料夾名稱 (例如 text-analyser)" },
+                        name = new { type = "string", description = "技能的顯示名稱 (YAML frontmatter 中的 name)" },
+                        description = new { type = "string", description = "技能的功能描述 (YAML frontmatter 中的 description)" },
+                        content = new { type = "string", description = "技能的詳細 Markdown 內容說明" }
+                    },
+                    required = new[] { "skillName", "name", "description", "content" }
+                }
+            );
         }
 
         public async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
@@ -134,6 +162,15 @@ namespace Antigravity02.Agents
                     int lineNum = Convert.ToInt32(args["lineNumber"]);
                     string newContent = args["newContent"].ToString();
                     return _fileTools.UpdateFileLine(args["fileName"].ToString(), lineNum, newContent);
+                case "read_skills":
+                    // 固定讀取 AI_Workspace/.agent/skills 目錄
+                    return _fileTools.ReadSkills(_fileTools.SkillsPath);
+                case "write_skill":
+                    string sName = args["skillName"].ToString();
+                    string name = args["name"].ToString();
+                    string desc = args["description"].ToString();
+                    string content = args["content"].ToString();
+                    return _fileTools.WriteSkill(sName, name, desc, content);
                 default:
                     return null;
             }

@@ -15,6 +15,14 @@ namespace Antigravity02.Tools
         private readonly string _aiOutputFolder = "AI_Workspace";
         private string _baseDirectory;
 
+        /// <summary>
+        /// 取得技能檔案的固定存放路徑 (AI_Workspace/.agent/skills)
+        /// </summary>
+        public string SkillsPath
+        {
+            get { return Path.Combine(_aiOutputFolder, ".agent", "skills"); }
+        }
+
         public FileTools(string baseDirectory = null)
         {
             // 規範化路徑並確保以分隔符結尾，防止 "C:\Path" 比對到 "C:\PathSecret"
@@ -426,6 +434,135 @@ namespace Antigravity02.Tools
                 counter++;
             }
             return string.Format("{0:n1}{1}", number, suffixes[counter]);
+        }
+
+        /// <summary>
+        /// 讀取指定路徑下所有資料夾內的 SKILL.md，擷取其中的 name 與 description，並回傳結構化的 JSON 字串
+        /// </summary>
+        public string ReadSkills(string subPath)
+        {
+            try
+            {
+                if (subPath.Contains("..")) return "錯誤：禁止存取上層目錄。";
+
+                string targetPath = Path.GetFullPath(Path.Combine(_baseDirectory, subPath));
+                
+                if (!targetPath.StartsWith(_baseDirectory, StringComparison.OrdinalIgnoreCase))
+                    return "錯誤：超出授權存取範圍。";
+
+                if (!Directory.Exists(targetPath))
+                    return "[]"; // 目錄尚未建立，回傳空清單
+
+                var skillFiles = Directory.GetFiles(targetPath, "SKILL.md", SearchOption.AllDirectories);
+                var skills = new List<Dictionary<string, string>>();
+
+                foreach (var file in skillFiles)
+                {
+                    try
+                    {
+                        var lines = File.ReadAllLines(file, Encoding.UTF8);
+                        bool inFrontmatter = false;
+                        string name = null;
+                        string description = null;
+
+                        foreach (var line in lines)
+                        {
+                            if (line.Trim() == "---")
+                            {
+                                if (!inFrontmatter)
+                                {
+                                    inFrontmatter = true;
+                                    continue;
+                                }
+                                else
+                                {
+                                    break; // 結束 frontmatter
+                                }
+                            }
+
+                            if (inFrontmatter)
+                            {
+                                if (line.StartsWith("name:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    name = line.Substring(5).Trim();
+                                }
+                                else if (line.StartsWith("description:", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    description = line.Substring(12).Trim();
+                                }
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            string relativePath = file.Substring(_baseDirectory.Length).Replace("\\", "/");
+                            skills.Add(new Dictionary<string, string>
+                            {
+                                { "name", name },
+                                { "description", description ?? "" },
+                                { "filePath", relativePath }
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        // 忽略單一檔案讀取錯誤
+                    }
+                }
+
+                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                return serializer.Serialize(skills);
+            }
+            catch (Exception ex)
+            {
+                UsageLogger.LogError($"FileTools(ReadSkills) Error: {ex.Message}");
+                return $"錯誤：無法讀取技能清單。{ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// 寫入技能檔案，強制建立在 AI_Workspace/.agent/skills/{skillName}/SKILL.md
+        /// </summary>
+        public string WriteSkill(string skillName, string name, string description, string content)
+        {
+            try
+            {
+                // 過濾資料夾名稱，防止 Path Traversal
+                string safeSkillName = Path.GetFileName(skillName);
+                if (string.IsNullOrWhiteSpace(safeSkillName))
+                {
+                    return "錯誤：技能名稱無效。";
+                }
+
+                string folderPath = Path.Combine(_baseDirectory, _aiOutputFolder, ".agent", "skills", safeSkillName);
+                if (!Directory.Exists(folderPath))
+                {
+                    Directory.CreateDirectory(folderPath);
+                }
+
+                string filePath = Path.Combine(folderPath, "SKILL.md");
+
+                bool fileExists = File.Exists(filePath);
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("---");
+                sb.AppendLine($"name: {name}");
+                sb.AppendLine($"description: {description}");
+                sb.AppendLine("---");
+                sb.AppendLine();
+                sb.AppendLine(content);
+
+                // File.WriteAllText 本身已經會直接覆寫存在的檔案
+                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+
+                string action = fileExists ? "覆蓋" : "建立";
+                return $"成功：已{action}技能檔案至 {_aiOutputFolder}/.agent/skills/{safeSkillName}/SKILL.md";
+            }
+            catch (Exception ex)
+            {
+                UsageLogger.LogError($"FileTools(WriteSkill) Error: {ex.Message}");
+                return $"錯誤：無法建立技能檔案。{ex.Message}";
+            }
         }
     }
 }
