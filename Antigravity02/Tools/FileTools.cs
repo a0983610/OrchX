@@ -35,6 +35,15 @@ namespace Antigravity02.Tools
             // 確保 AI 輸出資料夾存在
             string path = Path.Combine(_baseDirectory, _aiOutputFolder);
             if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+            // 確保 .agent 相關子資料夾存在
+            string agentPath = Path.Combine(path, ".agent");
+            string[] agentSubDirs = { "knowledge", "feature_requests", "skills" };
+            foreach (var sub in agentSubDirs)
+            {
+                string subDir = Path.Combine(agentPath, sub);
+                if (!Directory.Exists(subDir)) Directory.CreateDirectory(subDir);
+            }
         }
 
         public string ListFiles(string subPath = "")
@@ -173,13 +182,19 @@ namespace Antigravity02.Tools
                     fileName += ".txt";
                 }
 
-                // 過濾檔名，防禦 Path Traversal (目前限制在 AI_Workspace 根目錄下)
-                string safeFileName = Path.GetFileName(fileName);
+                // 防禦 Path Traversal
+                if (fileName.Contains("..")) return "錯誤：格式不合法。";
 
-                string folderPath = Path.Combine(_baseDirectory, _aiOutputFolder);
-                if (!Directory.Exists(folderPath)) Directory.CreateDirectory(folderPath);
+                string filePath = Path.GetFullPath(Path.Combine(_baseDirectory, _aiOutputFolder, fileName));
+                string aiWorkspacePath = Path.GetFullPath(Path.Combine(_baseDirectory, _aiOutputFolder));
 
-                string filePath = Path.Combine(folderPath, safeFileName);
+                // 安全檢查：確保目標路徑仍在 AI_Workspace 內
+                if (!filePath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                    return "錯誤：超出授權寫入範圍，僅可寫入 AI_Workspace 內。";
+
+                // 確保目標資料夾存在
+                string targetDir = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
                 
                 if (append)
                 {
@@ -190,8 +205,9 @@ namespace Antigravity02.Tools
                     File.WriteAllText(filePath, content, Encoding.UTF8);
                 }
 
+                string relativePath = filePath.Substring(aiWorkspacePath.Length).TrimStart(Path.DirectorySeparatorChar).Replace("\\", "/");
                 string actionType = append ? "附加內容" : "儲存檔案(覆蓋)";
-                return $"成功：{actionType}已完成至 {_aiOutputFolder}/{safeFileName}";
+                return $"成功：{actionType}已完成至 {_aiOutputFolder}/{relativePath}";
             }
             catch (Exception ex)
             {
