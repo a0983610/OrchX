@@ -33,7 +33,7 @@ namespace Antigravity02.Agents
 
             yield return client.CreateFunctionDeclaration(
                 "read_file",
-                "讀取特定檔案的內容。支援 .txt, .md, .csv, .json, .docx, .cs 等文字格式，也支援圖片 (.png, .jpg, .jpeg, .gif, .bmp, .webp)。讀取 AI 儲存的檔案請加上 AI_Workspace/ 前綴。" + (_hasFastModel ? "若檔案過大，可指定 summaryQuery 來擷取重點。" : ""),
+                "讀取特定檔案的內容。支援 .txt, .md, .csv, .json, .docx, .cs 等文字格式。讀取 AI 儲存的檔案請加上 AI_Workspace/ 前綴。" + (_hasFastModel ? "若檔案過大，可指定 summaryQuery 來擷取重點。" : ""),
                 _hasFastModel
                     ? (object)new
                     {

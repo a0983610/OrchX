@@ -235,13 +235,7 @@ namespace Antigravity02.Agents
                                 if (result == null) result = await _httpModule.TryHandleToolCallAsync(funcName, argsDict, ui);
                                 if (result == null) result = "Error: Unknown tool.";
 
-                                // 若遇到圖片，為避免封裝複雜，僅回應文字告知已讀取（因為專家僅支援純文字/工具循環，若需完整圖片支持還需額外處理 user part）
-                                if (result.StartsWith("[IMAGE_BASE64:"))
-                                {
-                                    int newlineIdx = result.IndexOf('\n');
-                                    string desc = newlineIdx >= 0 ? result.Substring(newlineIdx + 1) : "圖片已讀取";
-                                    result = $"[系統提示：專家模式暫不支援直接檢視圖片內容] {desc}";
-                                }
+
 
                                 toolResponseParts.Add(new
                                 {

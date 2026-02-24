@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
+
 using System.IO;
 using System.Text;
 using System.IO.Compression;
@@ -152,10 +150,6 @@ namespace Antigravity02.Tools
                 else if (extension == ".docx")
                 {
                     return ReadDocxText(filePath);
-                }
-                else if (IsImageExtension(extension))
-                {
-                    return ReadImageAsBase64(filePath, extension);
                 }
                 else
                 {
@@ -329,119 +323,7 @@ namespace Antigravity02.Tools
                 return $"讀取 .docx 時發生錯誤：{ex.Message}";
             }
         }
-        /// <summary>
-        /// 判斷副檔名是否為支援的圖片格式
-        /// </summary>
-        private bool IsImageExtension(string extension)
-        {
-            switch (extension)
-            {
-                case ".png":
-                case ".jpg":
-                case ".jpeg":
-                case ".gif":
-                case ".bmp":
-                case ".webp":
-                    return true;
-                default:
-                    return false;
-            }
-        }
 
-        /// <summary>
-        /// 取得圖片的 MIME type
-        /// </summary>
-        private string GetImageMimeType(string extension)
-        {
-            switch (extension)
-            {
-                case ".png": return "image/png";
-                case ".jpg":
-                case ".jpeg": return "image/jpeg";
-                case ".gif": return "image/gif";
-                case ".bmp": return "image/bmp";
-                case ".webp": return "image/webp";
-                default: return "application/octet-stream";
-            }
-        }
-
-        /// <summary>
-        /// 讀取圖片檔案，若太大則縮小，回傳特殊標記格式讓上層解析
-        /// 格式：[IMAGE_BASE64:mime_type:base64data]
-        /// </summary>
-        private string ReadImageAsBase64(string filePath, string extension)
-        {
-            const int MaxDimension = 1024; // 最大邊長
-            const long MaxFileSizeBytes = 10 * 1024 * 1024; // 10MB 上限
-
-            try
-            {
-                FileInfo fi = new FileInfo(filePath);
-                if (fi.Length > MaxFileSizeBytes)
-                {
-                    return $"錯誤：圖片檔案過大 ({FormatSize(fi.Length)})，超過 10MB 上限。";
-                }
-
-                string mimeType = GetImageMimeType(extension);
-
-                using (var originalImage = Image.FromFile(filePath))
-                {
-                    int origWidth = originalImage.Width;
-                    int origHeight = originalImage.Height;
-
-                    // 判斷是否需要縮小
-                    if (origWidth > MaxDimension || origHeight > MaxDimension)
-                    {
-                        // 等比縮放
-                        double ratio = Math.Min((double)MaxDimension / origWidth, (double)MaxDimension / origHeight);
-                        int newWidth = (int)(origWidth * ratio);
-                        int newHeight = (int)(origHeight * ratio);
-
-                        using (var resized = new Bitmap(newWidth, newHeight))
-                        {
-                            using (var g = Graphics.FromImage(resized))
-                            {
-                                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                                g.SmoothingMode = SmoothingMode.HighQuality;
-                                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                                g.DrawImage(originalImage, 0, 0, newWidth, newHeight);
-                            }
-
-                            // 縮小後以 JPEG 編碼（節省空間），除非原圖是 PNG 且可能有透明
-                            using (var ms = new MemoryStream())
-                            {
-                                ImageFormat outputFormat;
-                                if (extension == ".png")
-                                {
-                                    outputFormat = ImageFormat.Png;
-                                    // mimeType 保持 image/png
-                                }
-                                else
-                                {
-                                    outputFormat = ImageFormat.Jpeg;
-                                    mimeType = "image/jpeg";
-                                }
-                                resized.Save(ms, outputFormat);
-                                string base64 = Convert.ToBase64String(ms.ToArray());
-                                return $"[IMAGE_BASE64:{mimeType}:{base64}]\n[原始大小: {origWidth}x{origHeight}, 已縮放至: {newWidth}x{newHeight}]";
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // 不需縮放，直接讀取原始檔案 bytes
-                        byte[] imageBytes = File.ReadAllBytes(filePath);
-                        string base64 = Convert.ToBase64String(imageBytes);
-                        return $"[IMAGE_BASE64:{mimeType}:{base64}]\n[大小: {origWidth}x{origHeight}]";
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UsageLogger.LogError($"FileTools(ReadImageAsBase64) Error: {ex.Message}");
-                return $"錯誤：無法讀取圖片。{ex.Message}";
-            }
-        }
 
         private string FormatSize(long bytes)
         {
