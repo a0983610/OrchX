@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
+
 using Antigravity02.AIClient;
 using Antigravity02.Tools;
 using Antigravity02.UI;
@@ -48,7 +48,6 @@ namespace Antigravity02.Agents
         protected virtual void OnModelModeChanged() { }
 
         protected string SystemInstruction { get; set; }
-        protected readonly JavaScriptSerializer Serializer;
 
         protected List<object> ToolDeclarations;
         protected List<object> ChatHistory; // 新增：保存完整對話紀錄
@@ -61,7 +60,6 @@ namespace Antigravity02.Agents
         {
             SmartClient = new GeminiClient(apiKey, smartModel);
             FastClient = new GeminiClient(apiKey, fastModel);
-            Serializer = new JavaScriptSerializer();
             ToolDeclarations = new List<object>();
             ChatHistory = new List<object>(); // 新增：初始化對話紀錄
         }
@@ -108,7 +106,7 @@ namespace Antigravity02.Agents
                     string rawJson = await Client.GenerateContentAsync(request);
                     sw.Stop();
 
-                    var data = Serializer.Deserialize<Dictionary<string, object>>(rawJson);
+                    var data = JsonTools.Deserialize<Dictionary<string, object>>(rawJson);
 
                     // 解析 Token 使用量 (從 usageMetadata 獲取)
                     int promptTokens = 0, candidateTokens = 0, totalTokens = 0;
@@ -155,7 +153,7 @@ namespace Antigravity02.Agents
                             string funcName = call["name"].ToString();
                             var argsDict = (call["args"] as Dictionary<string, object>) ?? new Dictionary<string, object>();
 
-                            ui.ReportToolCall(funcName, Serializer.Serialize(argsDict));
+                            ui.ReportToolCall(funcName, JsonTools.Serialize(argsDict));
 
                             // 執行具體的工具邏輯 (由子類別實作)
                             string result = await ProcessToolCallAsync(funcName, argsDict, ui);
@@ -299,7 +297,7 @@ namespace Antigravity02.Agents
         {
             try
             {
-                string json = Serializer.Serialize(ChatHistory);
+                string json = JsonTools.Serialize(ChatHistory);
                 File.WriteAllText(filePath, json);
                 return true;
             }
@@ -321,7 +319,7 @@ namespace Antigravity02.Agents
                 }
 
                 string json = File.ReadAllText(filePath);
-                var history = Serializer.Deserialize<List<object>>(json);
+                var history = JsonTools.Deserialize<List<object>>(json);
                 if (history != null)
                 {
                     ChatHistory.Clear();

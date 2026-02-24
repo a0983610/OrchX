@@ -196,8 +196,7 @@ namespace Antigravity02.Agents
                 string responseJson = await _fastClient.GenerateContentAsync(request);
 
                 // 簡單解析回應 (假設回傳結構標準)
-                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-                var data = serializer.Deserialize<Dictionary<string, object>>(responseJson);
+                var data = JsonTools.Deserialize<Dictionary<string, object>>(responseJson);
                 var candidates = data["candidates"] as System.Collections.ArrayList;
                 if (candidates != null && candidates.Count > 0)
                 {

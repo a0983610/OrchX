@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
+
 using Antigravity02.AIClient;
 using Antigravity02.Tools;
 using Antigravity02.UI;
@@ -24,7 +24,7 @@ namespace Antigravity02.Agents
     public class MultiAgentModule : IAgentModule
     {
         private readonly IAIClient _client;
-        private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
+
         private readonly List<object> _expertToolDeclarations = new List<object>();
         private readonly FileModule _fileModule;
         private readonly HttpModule _httpModule;
@@ -190,7 +190,7 @@ namespace Antigravity02.Agents
                     string responseJson = await _client.GenerateContentAsync(request);
 
                     // 解析回應
-                    var data = _serializer.Deserialize<Dictionary<string, object>>(responseJson);
+                    var data = JsonTools.Deserialize<Dictionary<string, object>>(responseJson);
                     var candidates = data["candidates"] as System.Collections.ArrayList;
 
                     if (candidates == null || candidates.Count == 0) break;

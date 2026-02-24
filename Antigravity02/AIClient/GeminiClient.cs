@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
+
 using Antigravity02.Tools;
 
 namespace Antigravity02.AIClient
@@ -21,13 +21,11 @@ namespace Antigravity02.AIClient
         private readonly string _model;
         public string ModelName => _model;
         private static readonly HttpClient _httpClient = new HttpClient();
-        private readonly JavaScriptSerializer _serializer;
 
         public GeminiClient(string apiKey, string model = "gemini-2.5-flash")
         {
             _apiKey = apiKey;
             _model = model;
-            _serializer = new JavaScriptSerializer();
         }
 
         public async Task<string> GenerateContentAsync(GenerateContentRequest request)
@@ -47,7 +45,7 @@ namespace Antigravity02.AIClient
                 system_instruction = systemInstObj
             };
 
-            var json = _serializer.Serialize(requestBody);
+            var json = JsonTools.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync(url, content);

@@ -152,8 +152,7 @@ namespace Antigravity02
                 var tempClient = new Antigravity02.AIClient.GeminiClient(apiKey);
                 string json = await tempClient.ListModelsAsync();
 
-                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-                var data = serializer.Deserialize<Dictionary<string, object>>(json);
+                var data = JsonTools.Deserialize<Dictionary<string, object>>(json);
                 
                 var modelDocs = new System.Text.StringBuilder();
                 modelDocs.AppendLine("\n# --- 自動查詢可用模型列表 ---");

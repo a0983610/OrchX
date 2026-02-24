@@ -530,8 +530,7 @@ namespace Antigravity02.Tools
                     }
                 }
 
-                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
-                return serializer.Serialize(skills);
+                return JsonTools.Serialize(skills);
             }
             catch (Exception ex)
             {

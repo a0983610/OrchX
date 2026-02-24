@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
 
 namespace Antigravity02.Tools
 {
@@ -13,7 +12,7 @@ namespace Antigravity02.Tools
     public class HttpTools
     {
         private static readonly HttpClient _httpClient = new HttpClient();
-        private readonly JavaScriptSerializer _serializer = new JavaScriptSerializer();
+
 
         public async Task<string> GetAsync(string url, string headersJson = null)
         {
@@ -65,7 +64,7 @@ namespace Antigravity02.Tools
 
             try
             {
-                var headerDict = _serializer.Deserialize<Dictionary<string, string>>(headersJson);
+                var headerDict = JsonTools.Deserialize<Dictionary<string, string>>(headersJson);
                 if (headerDict != null)
                 {
                     foreach (var kvp in headerDict)

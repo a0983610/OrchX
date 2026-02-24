@@ -1,37 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{676324E6-6760-4968-88D3-6F34708C5E8D}</ProjectGuid>
     <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
     <RootNamespace>Antigravity02</RootNamespace>
     <AssemblyName>Antigravity02</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <Deterministic>true</Deterministic>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
+
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -42,32 +19,11 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="AIClient\IAIClient.cs" />
-    <Compile Include="AIClient\GeminiClient.cs" />
-    <Compile Include="Tools\FileTools.cs" />
-    <Compile Include="Tools\HttpTools.cs" />
-    <Compile Include="UI\IAgentUI.cs" />
-    <Compile Include="Agents\Modules\IAgentModule.cs" />
-    <Compile Include="Agents\BaseAgent.cs" />
-    <Compile Include="Tools\UsageLogger.cs" />
-    <Compile Include="Agents\Modules\FileModule.cs" />
-    <Compile Include="Agents\Modules\HttpModule.cs" />
-    <Compile Include="Agents\Modules\AIControlModule.cs" />
-    <Compile Include="Agents\Modules\MultiAgentModule.cs" />
-    <Compile Include="UI\ConsoleUI.cs" />
-    <Compile Include="Agents\UniversalAgent.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="CommandManager.cs" />
-    <Compile Include="Config\AgentConfig.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
