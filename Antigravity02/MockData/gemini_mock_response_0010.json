@@ -4,12 +4,7 @@
             "content": {
                 "parts": [
                     {
-                        "functionCall": {
-                            "name": "list_files",
-                            "args": {
-                                "subPath": ""
-                            }
-                        }
+                        "text": "FileModule 所有功能 (update_file_line, delete_file, write_skill, read_skills) 皆已透過 MockData 自動測試完畢！"
                     }
                 ],
                 "role": "model"

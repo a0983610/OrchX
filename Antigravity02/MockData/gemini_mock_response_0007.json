@@ -5,9 +5,9 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "list_files",
+                            "name": "delete_file",
                             "args": {
-                                "subPath": ""
+                                "fileName": "test_mock.txt"
                             }
                         }
                     }

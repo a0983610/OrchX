@@ -5,9 +5,12 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "list_files",
+                            "name": "write_skill",
                             "args": {
-                                "subPath": ""
+                                "skillName": "mock-test-skill",
+                                "name": "Mock Test Skill",
+                                "description": "This is a mock skill for testing",
+                                "content": "Just a test content."
                             }
                         }
                     }

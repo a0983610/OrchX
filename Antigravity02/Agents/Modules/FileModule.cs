@@ -27,20 +27,20 @@ namespace Antigravity02.Agents
         {
             yield return client.CreateFunctionDeclaration(
                 "list_files",
-                "以樹狀結構列出指定資料夾路徑下（最多 3 層）的所有檔案與子資料夾。",
-                new { type = "object", properties = new { subPath = new { type = "string", description = "資料夾相對路徑" } } }
+                "以樹狀結構列出 AI_Workspace 底下指定資料夾路徑下（最多 3 層）的所有檔案與子資料夾。預設可不填代表根目錄。",
+                new { type = "object", properties = new { subPath = new { type = "string", description = "資料夾相對路徑 (例如 / 或 notes)" } } }
             );
 
             yield return client.CreateFunctionDeclaration(
                 "read_file",
-                "讀取特定檔案的內容。支援 .txt, .md, .csv, .json, .docx, .cs 等文字格式。讀取 AI 儲存的檔案請加上 AI_Workspace/ 前綴。" + (_hasFastModel ? "若檔案過大，可指定 summaryQuery 來擷取重點。" : ""),
+                "讀取 AI_Workspace 下特定檔案的內容。支援 .txt, .md, .csv, .json, .docx, .cs 等文字格式。" + (_hasFastModel ? "若檔案過大，可指定 summaryQuery 來擷取重點。" : ""),
                 _hasFastModel
                     ? (object)new
                     {
                         type = "object",
                         properties = new
                         {
-                            fileName = new { type = "string", description = "檔案路徑 (例如 AI_Workspace/notes.txt)" },
+                            fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" },
                             summaryQuery = new { type = "string", description = "僅讀取符合此查詢的重點 (選填，使用快速模型處理)" }
                         },
                         required = new[] { "fileName" }
@@ -48,7 +48,7 @@ namespace Antigravity02.Agents
                     : (object)new
                     {
                         type = "object",
-                        properties = new { fileName = new { type = "string", description = "檔案路徑 (例如 AI_Workspace/notes.txt)" } },
+                        properties = new { fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" } },
                         required = new[] { "fileName" }
                     }
             );
@@ -71,13 +71,13 @@ namespace Antigravity02.Agents
 
             yield return client.CreateFunctionDeclaration(
                 "delete_file",
-                "刪除指定的檔案。請謹慎使用。刪除 AI 儲存的檔案請加上 AI_Workspace/ 前綴。",
+                "刪除 AI_Workspace 下指定的檔案。請謹慎使用。",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        fileName = new { type = "string", description = "檔案路徑 (例如 AI_Workspace/notes.txt)" }
+                        fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" }
                     },
                     required = new[] { "fileName" }
                 }
@@ -85,13 +85,13 @@ namespace Antigravity02.Agents
 
             yield return client.CreateFunctionDeclaration(
                 "update_file_line",
-                "修改文字檔中的特定行內容。行號從 1 開始。",
+                "修改 AI_Workspace 下文字檔中的特定行內容。行號從 1 開始。",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        fileName = new { type = "string", description = "檔名 (例如 AI_Workspace/notes.txt)" },
+                        fileName = new { type = "string", description = "檔名 (例如 notes.txt)" },
                         lineNumber = new { type = "integer", description = "要修改的行號 (1-based)" },
                         newContent = new { type = "string", description = "該行的新內容" }
                     },

@@ -5,9 +5,11 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "list_files",
+                            "name": "update_file_line",
                             "args": {
-                                "subPath": ""
+                                "fileName": "test_mock.txt",
+                                "lineNumber": 1,
+                                "newContent": "Updated mock API test text file."
                             }
                         }
                     }

@@ -5,10 +5,8 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "list_files",
-                            "args": {
-                                "subPath": ""
-                            }
+                            "name": "read_skills",
+                            "args": {}
                         }
                     }
                 ],
