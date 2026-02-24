@@ -55,6 +55,9 @@ namespace Antigravity02.Agents
 
         // 新增：動態開關時間戳記
         public bool EnableTimestampHeader { get; set; } = true;
+        
+        // 新增：歷史紀錄壓縮 Token 閾值
+        public int TokenThresholdForCompression { get; set; } = 800000;
 
         protected BaseAgent(string apiKey, string smartModel, string fastModel)
         {
@@ -126,6 +129,12 @@ namespace Antigravity02.Agents
 
                     // 紀錄 Log
                     UsageLogger.LogApiUsage(currentModelName, sw.ElapsedMilliseconds, promptTokens, candidateTokens, totalTokens);
+
+                    // 檢查 Token 數量，若超過閾值則觸發歷史紀錄壓縮
+                    if (totalTokens >= TokenThresholdForCompression)
+                    {
+                        await CompressHistoryAsync(ui);
+                    }
 
                     var candidates = data["candidates"] as System.Collections.ArrayList;
                     if (candidates == null || candidates.Count == 0) break;
@@ -284,6 +293,93 @@ namespace Antigravity02.Agents
         /// 子類別必須實作此方法來處理特定的工具呼叫
         /// </summary>
         protected abstract Task<string> ProcessToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui);
+
+        /// <summary>
+        /// 歷史紀錄過長時，自動進行壓縮摘要
+        /// </summary>
+        private async Task CompressHistoryAsync(IAgentUI ui)
+        {
+            if (ChatHistory.Count < 6) return;
+
+            int targetSplitIndex = ChatHistory.Count / 2;
+            int actualSplitIndex = -1;
+
+            for (int i = targetSplitIndex; i < ChatHistory.Count; i++)
+            {
+                string role = "";
+                if (ChatHistory[i] is Dictionary<string, object> dict && dict.ContainsKey("role"))
+                {
+                    role = dict["role"]?.ToString();
+                }
+                else
+                {
+                    string serialized = JsonTools.Serialize(ChatHistory[i]);
+                    var tempDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
+                    if (tempDict != null && tempDict.ContainsKey("role"))
+                    {
+                        role = tempDict["role"]?.ToString();
+                    }
+                }
+
+                if (role == "user")
+                {
+                    actualSplitIndex = i;
+                    break;
+                }
+            }
+
+            if (actualSplitIndex <= 0) return;
+
+            ui.ReportThinking(0, "Fast Model (正在壓縮與清理對話歷史紀錄...)");
+
+            var historyToCompress = ChatHistory.GetRange(0, actualSplitIndex);
+            
+            // 過濾掉 inline_data 欄位，避免將大體積圖片 base64 送給 Fast Model 做摘要，節省 Token 與網路頻寬
+            string rawJsonToCompress = JsonTools.Serialize(historyToCompress);
+            string cleanedJsonToCompress = System.Text.RegularExpressions.Regex.Replace(
+                rawJsonToCompress,
+                @"\""inline_data\""\s*:\s*\{[^}]*\}",
+                "\"inline_data\": \"[IMAGE_DATA_REMOVED]\""
+            );
+
+            string compressPrompt = "請將以下歷史對話紀錄進行詳細摘要，保留重要的上下文、決策過程、變數設定與關鍵資訊：\n\n" + cleanedJsonToCompress;
+
+            var request = new GenerateContentRequest
+            {
+                Contents = new List<object>
+                {
+                    new { role = "user", parts = new[] { new { text = compressPrompt } } }
+                }
+            };
+
+            try
+            {
+                string rawJson = await FastClient.GenerateContentAsync(request);
+                var data = JsonTools.Deserialize<Dictionary<string, object>>(rawJson);
+                
+                if (data != null && data.ContainsKey("candidates"))
+                {
+                    var candidates = data["candidates"] as System.Collections.ArrayList;
+                    if (candidates != null && candidates.Count > 0)
+                    {
+                        var modelContent = (candidates[0] as Dictionary<string, object>)["content"] as Dictionary<string, object>;
+                        var parts = modelContent["parts"] as System.Collections.ArrayList;
+                        string summaryText = (parts[0] as Dictionary<string, object>)["text"]?.ToString() ?? "摘要失敗";
+
+                        ChatHistory.RemoveRange(0, actualSplitIndex);
+                        
+                        ChatHistory.Insert(0, new { role = "user", parts = new[] { new { text = "以下是之前對話的歷史摘要：\n" + summaryText } } });
+                        ChatHistory.Insert(1, new { role = "model", parts = new[] { new { text = "已收到歷史紀錄摘要，我會根據這些資訊上下文繼續回應並執行任務。" } } });
+
+                        ui.ReportToolResult($"歷史紀錄 Token 過高，已自動將前半段 ({actualSplitIndex} 則對話) 壓縮為摘要，釋放 Token 空間。");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UsageLogger.LogError($"History Compression Error: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// 清除對話紀錄，開始新對話
