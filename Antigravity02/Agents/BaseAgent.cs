@@ -97,9 +97,26 @@ namespace Antigravity02.Agents
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
+                    // 複製一份 ChatHistory 給這次 Request 使用
+                    var requestContents = new List<object>(ChatHistory);
+
+                    // 在送往 AI 前，固定附加上系統資訊 (如 read_skills)，但不存入 ChatHistory
+                    try
+                    {
+                        string additionalInfo = BuildSystemFixedInfo();
+                        if (!string.IsNullOrWhiteSpace(additionalInfo))
+                        {
+                            AppendFixedInfoToLastUserMessage(requestContents, additionalInfo);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // 忽略錯誤，避免阻斷主要執行流程
+                    }
+
                     var request = new GenerateContentRequest
                     {
-                        Contents = ChatHistory,
+                        Contents = requestContents,
                         Tools = ToolDeclarations,
                         SystemInstruction = SystemInstruction
                     };
@@ -156,6 +173,55 @@ namespace Antigravity02.Agents
                         continueLoop = false;
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// 收集所有要附加至 User 提示的系統資訊字串。
+        /// 子類別可覆寫此方法以自訂或擴充附加的內容。
+        /// </summary>
+        protected virtual string BuildSystemFixedInfo()
+        {
+            var fileTools = new FileTools();
+            string skillsData = fileTools.ReadSkills(fileTools.SkillsPath);
+            if (!string.IsNullOrWhiteSpace(skillsData))
+            {
+                return $"Available Skills (from read_skills):\n{skillsData}";
+            }
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// 在送出 Request 之前，將固定的系統資訊附加到最後一筆 User Message。
+        /// </summary>
+        protected virtual void AppendFixedInfoToLastUserMessage(List<object> requestContents, string additionalInfo)
+        {
+            if (string.IsNullOrWhiteSpace(additionalInfo) || requestContents.Count == 0) return;
+
+            try
+            {
+                var lastMessage = requestContents[requestContents.Count - 1];
+                string serialized = JsonTools.Serialize(lastMessage);
+                var lastDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
+
+                if (lastDict != null && lastDict.ContainsKey("role") && lastDict["role"]?.ToString() == "user")
+                {
+                    var reqParts = lastDict["parts"] as System.Collections.ArrayList;
+                    if (reqParts != null && reqParts.Count > 0)
+                    {
+                        var textPart = reqParts[0] as Dictionary<string, object>;
+                        if (textPart != null && textPart.ContainsKey("text"))
+                        {
+                            string originalText = textPart["text"]?.ToString();
+                            textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
+                        }
+                    }
+                    requestContents[requestContents.Count - 1] = lastDict;
+                }
+            }
+            catch (Exception)
+            {
+                // 忽略錯誤，避免阻斷主要執行流程
             }
         }
 
