@@ -103,24 +103,49 @@ namespace Antigravity02.AIClient
             };
 
             var json = JsonTools.Serialize(requestBody);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            int maxRetries = 1;
+            int currentRetry = 0;
+            int delayMs = 2000;
 
-            var response = await _httpClient.PostAsync(url, content);
-            var responseJson = await response.Content.ReadAsStringAsync();
+            HttpResponseMessage response = null;
+            string responseJson = null;
 
-            if (!response.IsSuccessStatusCode)
+            while (true)
             {
+                using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
+                {
+                    response = await _httpClient.PostAsync(url, content);
+                    responseJson = await response.Content.ReadAsStringAsync();
+                }
+
+                if (response.IsSuccessStatusCode)
+                {
+                    break;
+                }
+
                 // 紀錄詳細錯誤資訊
                 UsageLogger.LogApiError($"API Error: {response.StatusCode}", json, responseJson);
 
                 if ((int)response.StatusCode == 429)
                 {
-                    throw new Exception(
-                        "Gemini API Quota Exceeded (429).\n" +
-                        "你不小心超出了目前的 API 使用額度。\n" +
-                        "請檢查您的 Google AI Studio 方案或稍後再試。\n" +
-                        "詳細錯誤資訊可至 logs 日誌中查看。"
-                    );
+                    if (currentRetry < maxRetries)
+                    {
+                        currentRetry++;
+                        Console.WriteLine($"\n[GeminiClient] 收到 HTTP 429 (Too Many Requests)，等待 {delayMs / 1000.0} 秒後進行第 {currentRetry} 次重試...");
+                        await Task.Delay(delayMs);
+                        delayMs *= 2; // 指數退避
+                        continue;
+                    }
+                    else
+                    {
+                        throw new Exception(
+                            "Gemini API Quota Exceeded (429).\n" +
+                            "你超出了目前的 API 使用額度，或請求過於頻繁。\n" +
+                            $"已達到最大重試次數 ({maxRetries} 次)。\n" +
+                            "請檢查您的 Google AI Studio 方案或稍後再試。\n" +
+                            "詳細錯誤資訊可至 logs 日誌中查看。"
+                        );
+                    }
                 }
                 
                 // 處理模型不支援 Function Calling 的情況 (400 Bad Request)

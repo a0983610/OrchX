@@ -101,6 +101,7 @@ namespace Antigravity02
                 Console.ResetColor();
 
                 string input = Console.ReadLine();
+                if (input == null) break;
                 if (string.IsNullOrEmpty(input)) continue;
 
                 // --- 指令處理 ---

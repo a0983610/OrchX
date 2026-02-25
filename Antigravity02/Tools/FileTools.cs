@@ -44,6 +44,15 @@ namespace Antigravity02.Tools
             }
         }
 
+        private bool IsPathAllowed(string targetPath, string allowedBasePath)
+        {
+            if (!allowedBasePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            {
+                allowedBasePath += Path.DirectorySeparatorChar;
+            }
+            return targetPath.StartsWith(allowedBasePath, StringComparison.OrdinalIgnoreCase);
+        }
+
         public string ListFiles(string subPath = "")
         {
             try
@@ -55,7 +64,7 @@ namespace Antigravity02.Tools
                 string targetPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, subPath));
                 
                 // 確保目標路徑仍在 AI_Workspace 內
-                if (!targetPath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(targetPath, aiWorkspacePath))
                 {
                     return "錯誤：超出授權存取範圍。";
                 }
@@ -135,7 +144,7 @@ namespace Antigravity02.Tools
                 string filePath = Path.GetFullPath(Path.Combine(aiWorkspacePath, fileName));
 
                 // 安全檢查
-                if (!filePath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(filePath, aiWorkspacePath))
                     return "錯誤：超出授權存取範圍，僅可讀取 AI_Workspace 內的檔案。";
 
                 if (!File.Exists(filePath))
@@ -185,7 +194,7 @@ namespace Antigravity02.Tools
                 string aiWorkspacePath = Path.GetFullPath(Path.Combine(_baseDirectory, _aiOutputFolder));
 
                 // 安全檢查：確保目標路徑仍在 AI_Workspace 內
-                if (!filePath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(filePath, aiWorkspacePath))
                     return "錯誤：超出授權寫入範圍，僅可寫入 AI_Workspace 內。";
 
                 // 確保目標資料夾存在
@@ -225,7 +234,7 @@ namespace Antigravity02.Tools
                 string filePath = Path.GetFullPath(Path.Combine(aiWorkspacePath, fileName));
 
                 // 安全檢查
-                if (!filePath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(filePath, aiWorkspacePath))
                     return "錯誤：超出授權範圍，僅可刪除 AI_Workspace 內的檔案。";
 
                 if (!File.Exists(filePath))
@@ -256,7 +265,7 @@ namespace Antigravity02.Tools
                 string filePath = Path.GetFullPath(Path.Combine(aiWorkspacePath, fileName));
 
                 // 安全檢查
-                if (!filePath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(filePath, aiWorkspacePath))
                     return "錯誤：超出授權範圍，僅可修改 AI_Workspace 內的檔案。";
 
                 if (!File.Exists(filePath))
@@ -353,7 +362,7 @@ namespace Antigravity02.Tools
 
                 string targetPath = Path.GetFullPath(Path.Combine(_baseDirectory, subPath));
                 
-                if (!targetPath.StartsWith(_baseDirectory, StringComparison.OrdinalIgnoreCase))
+                if (!IsPathAllowed(targetPath, _baseDirectory))
                     return "錯誤：超出授權存取範圍。";
 
                 if (!Directory.Exists(targetPath))

@@ -5,6 +5,7 @@ namespace Antigravity02.Tools
 {
     public static class UsageLogger
     {
+        private static readonly object _logLock = new object();
         private static readonly string LogFolderName = "logs";
         private static int _sessionCallCount = 0;
 
@@ -33,9 +34,10 @@ namespace Antigravity02.Tools
                                   $"Duration: {durationMs}ms | " +
                                   $"Tokens: [Prompt: {promptTokens}, Candidate: {candidateTokens}, Total: {totalTokens}]" +
                                   Environment.NewLine;
-
-                File.AppendAllText(GetLogFilePath(), logEntry);
-            }
+                lock (_logLock)
+                {
+                    File.AppendAllText(GetLogFilePath(), logEntry);
+                }            }
             catch (Exception ex)
             {
                 Console.WriteLine($"[Logger Error] {ex.Message}");
@@ -49,7 +51,10 @@ namespace Antigravity02.Tools
                 string text = resultSummary ?? "(null)";
                 string summary = text.Length > 200 ? text.Substring(0, 200) + "..." : text;
                 string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ACTION] {actionName} | Result: {summary}{Environment.NewLine}";
-                File.AppendAllText(GetLogFilePath(), logEntry);
+                lock (_logLock)
+                {
+                    File.AppendAllText(GetLogFilePath(), logEntry);
+                }
             }
             catch (Exception ex)
             {
@@ -62,7 +67,10 @@ namespace Antigravity02.Tools
             try
             {
                 string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message}{Environment.NewLine}";
-                File.AppendAllText(GetLogFilePath(), logEntry);
+                lock (_logLock)
+                {
+                    File.AppendAllText(GetLogFilePath(), logEntry);
+                }
             }
             catch (Exception ex)
             {
@@ -91,11 +99,14 @@ namespace Antigravity02.Tools
                                        $"--- API REQUEST ---{Environment.NewLine}{requestBody}{Environment.NewLine}{Environment.NewLine}" +
                                        $"--- API RESPONSE ---{Environment.NewLine}{responseBody}";
 
-                File.WriteAllText(errFilePath, detailContent);
+                lock (_logLock)
+                {
+                    File.WriteAllText(errFilePath, detailContent);
 
-                // 在主 log 紀錄簡短訊息並附上編號
-                string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message} | Details in err/{errFileName}{Environment.NewLine}";
-                File.AppendAllText(GetLogFilePath(), logEntry);
+                    // 在主 log 紀錄簡短訊息並附上編號
+                    string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message} | Details in err/{errFileName}{Environment.NewLine}";
+                    File.AppendAllText(GetLogFilePath(), logEntry);
+                }
             }
             catch (Exception ex)
             {
