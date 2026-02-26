@@ -120,18 +120,10 @@ namespace Antigravity02
                 }
                 catch (Exception ex)
                 {
-                    UsageLogger.LogError($"System Error: {ex.Message}");
+                    UsageLogger.LogError($"System Error: {ex.ToString()}");
                     ui.ReportError(ex.Message);
 
-                    // 系統級錯誤也儲存備份
-                    if (agent.SaveChatHistory("system_error_backup.json"))
-                    {
-                        ui.ReportError("系統發生非預期錯誤，對話紀錄已備份至 system_error_backup.json");
-                    }
-                    else
-                    {
-                        ui.ReportError("系統發生非預期錯誤，且無法備份對話紀錄。");
-                    }
+                    BackupChatHistoryOnError(agent, ui);
                 }
             }
         }
@@ -159,21 +151,25 @@ namespace Antigravity02
                 }
                 catch (Exception ex)
                 {
-                    UsageLogger.LogError($"Startup Args Error: {ex.Message}");
+                    UsageLogger.LogError($"Startup Args Error: {ex.ToString()}");
                     ui.ReportError(ex.Message);
 
-                    // 啟動參數發生錯誤時也進行歷史紀錄備份
-                    if (agent.SaveChatHistory("system_error_backup.json"))
-                    {
-                        ui.ReportError("系統發生非預期錯誤，對話紀錄已備份至 system_error_backup.json");
-                    }
-                    else
-                    {
-                        ui.ReportError("系統發生非預期錯誤，且無法備份對話紀錄。");
-                    }
+                    BackupChatHistoryOnError(agent, ui);
                 }
             }
             return false;
+        }
+
+        static void BackupChatHistoryOnError(UniversalAgent agent, ConsoleUI ui)
+        {
+            if (agent.SaveChatHistory("system_error_backup.json"))
+            {
+                ui.ReportError("系統發生非預期錯誤，對話紀錄已備份至 system_error_backup.json");
+            }
+            else
+            {
+                ui.ReportError("系統發生非預期錯誤，且無法備份對話紀錄。");
+            }
         }
 
         static async Task UpdateEnvWithModelListAsync(string apiKey)
