@@ -4,12 +4,7 @@
             "content": {
                 "parts": [
                     {
-                        "functionCall": {
-                            "name": "read_file",
-                            "args": {
-                                "filePath": "test_mock.txt"
-                            }
-                        }
+                        "text": "這些測試我都完成了！我先切換到了 fast 模式，接著發送了 GET 請求獲得了一句名言，最後成功透過 POST 發送了測試資料給伺服器。"
                     }
                 ],
                 "role": "model"

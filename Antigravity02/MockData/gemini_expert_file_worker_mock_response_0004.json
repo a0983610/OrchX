@@ -5,11 +5,9 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "write_file",
+                            "name": "delete_file",
                             "args": {
-                                "filePath": "test_mock.txt",
-                                "content": "Hello! This is a mock API test text file.",
-                                "append": false
+                                "filePath": "mock_test.txt"
                             }
                         }
                     }

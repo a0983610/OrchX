@@ -5,11 +5,9 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "write_file",
+                            "name": "switch_model_mode",
                             "args": {
-                                "filePath": "test_mock.txt",
-                                "content": "Hello! This is a mock API test text file.",
-                                "append": false
+                                "mode": "fast"
                             }
                         }
                     }

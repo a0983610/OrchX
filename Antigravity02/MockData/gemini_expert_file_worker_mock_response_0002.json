@@ -7,8 +7,8 @@
                         "functionCall": {
                             "name": "write_file",
                             "args": {
-                                "filePath": "test_mock.txt",
-                                "content": "Hello! This is a mock API test text file.",
+                                "filePath": "mock_test.txt",
+                                "content": "HelloWorld",
                                 "append": false
                             }
                         }

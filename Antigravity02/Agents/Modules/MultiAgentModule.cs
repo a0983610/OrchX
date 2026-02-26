@@ -184,7 +184,8 @@ namespace Antigravity02.Agents
                     {
                         SystemInstruction = session.Role,
                         Contents = session.History,
-                        Tools = _expertToolDeclarations.Count > 0 ? _expertToolDeclarations : null
+                        Tools = _expertToolDeclarations.Count > 0 ? _expertToolDeclarations : null,
+                        MockProviderName = $"gemini_expert_{expertName}"
                     };
 
                     string responseJson = await _client.GenerateContentAsync(request);
@@ -196,8 +197,8 @@ namespace Antigravity02.Agents
                     if (candidates == null || candidates.Count == 0) break;
 
                     var candidate = candidates[0] as Dictionary<string, object>;
-                    var modelContent = candidate["content"] as Dictionary<string, object>;
-                    var parts = modelContent["parts"] as System.Collections.ArrayList;
+                    var modelContent = (candidate != null && candidate.ContainsKey("content")) ? candidate["content"] as Dictionary<string, object> : new Dictionary<string, object>();
+                    var parts = (modelContent != null && modelContent.ContainsKey("parts")) ? modelContent["parts"] as System.Collections.ArrayList : new System.Collections.ArrayList();
 
                     // 將模型回應加入對話歷史 (保持多輪對話)
                     session.History.Add(modelContent);
@@ -226,7 +227,7 @@ namespace Antigravity02.Agents
                                 hasFunctionCall = true;
                                 var call = part["functionCall"] as Dictionary<string, object>;
                                 string funcName = call["name"].ToString();
-                                var argsDict = (call["args"] as Dictionary<string, object>) ?? new Dictionary<string, object>();
+                                var argsDict = (call.ContainsKey("args") ? call["args"] as Dictionary<string, object> : null) ?? new Dictionary<string, object>();
 
                                 ui.ReportInfo($"[Expert: {expertName}] 呼叫工具 {funcName}...");
 

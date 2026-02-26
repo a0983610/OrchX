@@ -5,11 +5,10 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "write_file",
+                            "name": "http_get",
                             "args": {
-                                "filePath": "test_mock.txt",
-                                "content": "Hello! This is a mock API test text file.",
-                                "append": false
+                                "url": "https://api.github.com/zen",
+                                "headers": "{\"User-Agent\": \"MockAgent\"}"
                             }
                         }
                     }

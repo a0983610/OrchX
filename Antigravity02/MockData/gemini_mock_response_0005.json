@@ -7,7 +7,7 @@
                         "functionCall": {
                             "name": "update_file_line",
                             "args": {
-                                "fileName": "test_mock.txt",
+                                "filePath": "test_mock.txt",
                                 "lineNumber": 1,
                                 "newContent": "Updated mock API test text file."
                             }

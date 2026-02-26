@@ -7,7 +7,7 @@
                         "functionCall": {
                             "name": "read_file",
                             "args": {
-                                "fileName": "test_mock.txt"
+                                "filePath": "test_mock.txt"
                             }
                         }
                     }

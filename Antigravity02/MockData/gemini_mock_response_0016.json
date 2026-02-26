@@ -4,12 +4,7 @@
             "content": {
                 "parts": [
                     {
-                        "functionCall": {
-                            "name": "read_file",
-                            "args": {
-                                "filePath": "test_mock.txt"
-                            }
-                        }
+                        "text": "太棒了！子助理已經幫我確認完所有的檔案工具操作都是正常的。"
                     }
                 ],
                 "role": "model"

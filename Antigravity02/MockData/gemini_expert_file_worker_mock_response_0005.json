@@ -4,12 +4,7 @@
             "content": {
                 "parts": [
                     {
-                        "functionCall": {
-                            "name": "read_file",
-                            "args": {
-                                "filePath": "test_mock.txt"
-                            }
-                        }
+                        "text": "報告主 AI：我已經成功測試了 list_files, write_file, read_file, 與 delete_file 的所有功能，檔案操作正確無誤。"
                     }
                 ],
                 "role": "model"

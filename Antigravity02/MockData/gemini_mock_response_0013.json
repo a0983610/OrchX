@@ -5,11 +5,12 @@
                 "parts": [
                     {
                         "functionCall": {
-                            "name": "write_file",
+                            "name": "http_post",
                             "args": {
-                                "filePath": "test_mock.txt",
-                                "content": "Hello! This is a mock API test text file.",
-                                "append": false
+                                "url": "https://httpbin.org/post",
+                                "body": "{\"mock_test\": true}",
+                                "contentType": "application/json",
+                                "headers": "{\"Authorization\": \"Bearer mock\"}"
                             }
                         }
                     }

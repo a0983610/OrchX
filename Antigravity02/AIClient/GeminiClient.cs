@@ -14,6 +14,7 @@ namespace Antigravity02.AIClient
         public object Contents { get; set; }
         public List<object> Tools { get; set; }
         public string SystemInstruction { get; set; }
+        public string MockProviderName { get; set; }
     }
 
     public class GeminiClient : IAIClient
@@ -33,7 +34,8 @@ namespace Antigravity02.AIClient
         {
             if (string.IsNullOrWhiteSpace(_apiKey))
             {
-                return MockDataManager.GetMockResponse("Gemini");
+                string providerName = request.MockProviderName ?? "Gemini";
+                return MockDataManager.GetMockResponse(providerName);
             }
 
             var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
@@ -128,10 +130,17 @@ namespace Antigravity02.AIClient
         public System.Collections.ArrayList ExtractResponseParts(Dictionary<string, object> data, out Dictionary<string, object> modelContent)
         {
             modelContent = null;
+            if (data == null || !data.ContainsKey("candidates")) return null;
+            
             var candidates = data["candidates"] as System.Collections.ArrayList;
             if (candidates == null || candidates.Count == 0) return null;
 
-            modelContent = (candidates[0] as Dictionary<string, object>)["content"] as Dictionary<string, object>;
+            var firstCandidate = candidates[0] as Dictionary<string, object>;
+            if (firstCandidate == null || !firstCandidate.ContainsKey("content")) return null;
+
+            modelContent = firstCandidate["content"] as Dictionary<string, object>;
+            if (modelContent == null || !modelContent.ContainsKey("parts")) return null;
+
             return modelContent["parts"] as System.Collections.ArrayList;
         }
 
@@ -250,7 +259,7 @@ namespace Antigravity02.AIClient
                     hasFunctionCall = true;
                     var call = part["functionCall"] as Dictionary<string, object>;
                     string funcName = call["name"].ToString();
-                    var argsDict = (call["args"] as Dictionary<string, object>) ?? new Dictionary<string, object>();
+                    var argsDict = (call.ContainsKey("args") ? call["args"] as Dictionary<string, object> : null) ?? new Dictionary<string, object>();
 
                     ui.ReportToolCall(funcName, JsonTools.Serialize(argsDict));
 

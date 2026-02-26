@@ -32,7 +32,7 @@ namespace Antigravity02.Agents
             yield return client.CreateFunctionDeclaration(
                 "list_files",
                 "以樹狀結構列出 AI_Workspace 底下指定資料夾路徑下（最多 3 層）的所有檔案與子資料夾。預設可不填代表根目錄。",
-                new { type = "object", properties = new { subPath = new { type = "string", description = "資料夾相對路徑 (例如 / 或 notes)" } } }
+                new { type = "object", properties = new { path = new { type = "string", description = "資料夾相對路徑 (例如 / 或 notes)" } } }
             );
 
             yield return client.CreateFunctionDeclaration(
@@ -44,16 +44,16 @@ namespace Antigravity02.Agents
                         type = "object",
                         properties = new
                         {
-                            fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" },
+                            filePath = new { type = "string", description = "檔案路徑 (例如 notes.txt)" },
                             summaryQuery = new { type = "string", description = "僅讀取符合此查詢的重點 (選填，使用快速模型處理)" }
                         },
-                        required = new[] { "fileName" }
+                        required = new[] { "filePath" }
                     }
                     : (object)new
                     {
                         type = "object",
-                        properties = new { fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" } },
-                        required = new[] { "fileName" }
+                        properties = new { filePath = new { type = "string", description = "檔案路徑 (例如 notes.txt)" } },
+                        required = new[] { "filePath" }
                     }
             );
 
@@ -65,11 +65,11 @@ namespace Antigravity02.Agents
                     type = "object",
                     properties = new
                     {
-                        fileName = new { type = "string", description = "檔名 (例如 notes.txt)" },
+                        filePath = new { type = "string", description = "檔名 (例如 notes.txt)" },
                         content = new { type = "string", description = "內容" },
                         append = new { type = "boolean", description = "true=附加內容到最後 (預設); false=覆蓋所有內容" }
                     },
-                    required = new[] { "fileName", "content" }
+                    required = new[] { "filePath", "content" }
                 }
             );
 
@@ -81,9 +81,9 @@ namespace Antigravity02.Agents
                     type = "object",
                     properties = new
                     {
-                        fileName = new { type = "string", description = "檔案路徑 (例如 notes.txt)" }
+                        filePath = new { type = "string", description = "檔案路徑 (例如 notes.txt)" }
                     },
-                    required = new[] { "fileName" }
+                    required = new[] { "filePath" }
                 }
             );
 
@@ -95,11 +95,11 @@ namespace Antigravity02.Agents
                     type = "object",
                     properties = new
                     {
-                        fileName = new { type = "string", description = "檔名 (例如 notes.txt)" },
+                        filePath = new { type = "string", description = "檔名 (例如 notes.txt)" },
                         lineNumber = new { type = "integer", description = "要修改的行號 (1-based)" },
                         newContent = new { type = "string", description = "該行的新內容" }
                     },
-                    required = new[] { "fileName", "lineNumber", "newContent" }
+                    required = new[] { "filePath", "lineNumber", "newContent" }
                 }
             );
 
@@ -137,10 +137,11 @@ namespace Antigravity02.Agents
             switch (funcName)
             {
                 case "list_files":
-                    string subPath = args.ContainsKey("subPath") ? args["subPath"].ToString() : "";
+                    string subPath = args.ContainsKey("path") ? args["path"].ToString() : "";
                     return _fileTools.ListFiles(subPath);
                 case "read_file":
-                    string fileContent = _fileTools.ReadFile(args["fileName"].ToString());
+                    if (!args.ContainsKey("filePath")) return "Error: Missing 'filePath' argument.";
+                    string fileContent = _fileTools.ReadFile(args["filePath"].ToString());
                     string fileQuery = args.ContainsKey("summaryQuery") ? args["summaryQuery"].ToString() : null;
 
                     if (_hasFastModel && !string.IsNullOrEmpty(fileQuery))
@@ -155,21 +156,25 @@ namespace Antigravity02.Agents
                     }
                     return fileContent;
                 case "write_file":
+                    if (!args.ContainsKey("filePath") || !args.ContainsKey("content")) return "Error: Missing 'filePath' or 'content' argument.";
                     bool append = args.ContainsKey("append") ? Convert.ToBoolean(args["append"]) : true;
                     return _fileTools.WriteFile(
-                        args["fileName"].ToString(),
+                        args["filePath"].ToString(),
                         args["content"].ToString(),
                         append);
                 case "delete_file":
-                    return _fileTools.DeleteFile(args["fileName"].ToString());
+                    if (!args.ContainsKey("filePath")) return "Error: Missing 'filePath' argument.";
+                    return _fileTools.DeleteFile(args["filePath"].ToString());
                 case "update_file_line":
+                    if (!args.ContainsKey("filePath") || !args.ContainsKey("lineNumber") || !args.ContainsKey("newContent")) return "Error: Missing required arguments.";
                     int lineNum = Convert.ToInt32(args["lineNumber"]);
                     string newContent = args["newContent"].ToString();
-                    return _fileTools.UpdateFileLine(args["fileName"].ToString(), lineNum, newContent);
+                    return _fileTools.UpdateFileLine(args["filePath"].ToString(), lineNum, newContent);
                 case "read_skills":
                     // 固定讀取 AI_Workspace/.agent/skills 目錄
                     return _fileTools.ReadSkills(_fileTools.SkillsPath);
                 case "write_skill":
+                    if (!args.ContainsKey("skillName") || !args.ContainsKey("name") || !args.ContainsKey("description") || !args.ContainsKey("content")) return "Error: Missing required arguments.";
                     string sName = args["skillName"].ToString();
                     string name = args["name"].ToString();
                     string desc = args["description"].ToString();

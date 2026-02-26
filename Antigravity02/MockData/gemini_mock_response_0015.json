@@ -1,0 +1,22 @@
+{
+    "candidates": [
+        {
+            "content": {
+                "parts": [
+                    {
+                        "functionCall": {
+                            "name": "consult_expert",
+                            "args": {
+                                "expert_name": "file_worker",
+                                "question": "請依序測試 list_files, write_file, read_file 和 delete_file。寫一個檔案叫 mock_test.txt，裡面內容是 HelloWorld，讀取出來後再刪除。",
+                                "role": "你是一個負責測試檔案工具的專業子助理。你會一步步使用 list_files, write_file, read_file, delete_file。"
+                            }
+                        }
+                    }
+                ],
+                "role": "model"
+            },
+            "finishReason": "STOP"
+        }
+    ]
+}
