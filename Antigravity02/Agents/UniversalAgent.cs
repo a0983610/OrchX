@@ -20,7 +20,7 @@ namespace Antigravity02.Agents
             bool hasDifferentFastModel = SmartClient.ModelName != FastClient.ModelName;
             RegisterModule(new FileModule(hasDifferentFastModel ? FastClient : null));
             RegisterModule(new HttpModule());
-            RegisterModule(new AIControlModule(this.SetModelMode, () => this.IsSmartMode));
+            RegisterModule(new AIControlModule(this.SetModelMode, () => this.IsSmartMode, hasDifferentFastModel));
             RegisterModule(new MultiAgentModule(smartClient));
             // 未來可以輕鬆加入更多模組，例如：
             // RegisterModule(new WebSearchModule());
