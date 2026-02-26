@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Antigravity02.Tools;
+using Antigravity02.UI;
 
 namespace Antigravity02.AIClient
 {
@@ -180,6 +181,106 @@ namespace Antigravity02.AIClient
             var url = $"https://generativelanguage.googleapis.com/v1beta/models?key={_apiKey}";
             var response = await _httpClient.GetAsync(url);
             return await response.Content.ReadAsStringAsync();
+        }
+
+        public (int promptTokens, int candidateTokens, int totalTokens) ExtractTokenUsage(Dictionary<string, object> data)
+        {
+            int promptTokens = 0, candidateTokens = 0, totalTokens = 0;
+            if (data.ContainsKey("usageMetadata") && data["usageMetadata"] is Dictionary<string, object> usage)
+            {
+                if (usage.ContainsKey("promptTokenCount"))
+                    promptTokens = Convert.ToInt32(usage["promptTokenCount"]);
+                if (usage.ContainsKey("candidatesTokenCount"))
+                    candidateTokens = Convert.ToInt32(usage["candidatesTokenCount"]);
+                if (usage.ContainsKey("totalTokenCount"))
+                    totalTokens = Convert.ToInt32(usage["totalTokenCount"]);
+            }
+            return (promptTokens, candidateTokens, totalTokens);
+        }
+
+        public void AppendFixedInfoToLastUserMessage(List<object> requestContents, string additionalInfo)
+        {
+            if (string.IsNullOrWhiteSpace(additionalInfo) || requestContents.Count == 0) return;
+
+            try
+            {
+                var lastMessage = requestContents[requestContents.Count - 1];
+                string serialized = JsonTools.Serialize(lastMessage);
+                var lastDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
+
+                if (lastDict != null && lastDict.ContainsKey("role") && lastDict["role"]?.ToString() == "user")
+                {
+                    var reqParts = lastDict["parts"] as System.Collections.ArrayList;
+                    if (reqParts != null && reqParts.Count > 0)
+                    {
+                        var textPart = reqParts[0] as Dictionary<string, object>;
+                        if (textPart != null && textPart.ContainsKey("text"))
+                        {
+                            string originalText = textPart["text"]?.ToString();
+                            textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
+                        }
+                    }
+                    requestContents[requestContents.Count - 1] = lastDict;
+                }
+            }
+            catch (Exception)
+            {
+                // 忽略錯誤，避免阻斷主要執行流程
+            }
+        }
+
+        public async Task<(bool hasFunctionCall, List<object> toolResponseParts)> ProcessModelPartsAsync(
+            System.Collections.ArrayList parts, 
+            IAgentUI ui, 
+            string currentModelName,
+            Func<string, Dictionary<string, object>, Task<string>> toolExecutor)
+        {
+            bool hasFunctionCall = false;
+            var toolResponseParts = new List<object>();
+
+            foreach (Dictionary<string, object> part in parts)
+            {
+                if (part.ContainsKey("text"))
+                {
+                    ui.ReportTextResponse(part["text"].ToString(), currentModelName);
+                }
+
+                if (part.ContainsKey("functionCall"))
+                {
+                    hasFunctionCall = true;
+                    var call = part["functionCall"] as Dictionary<string, object>;
+                    string funcName = call["name"].ToString();
+                    var argsDict = (call["args"] as Dictionary<string, object>) ?? new Dictionary<string, object>();
+
+                    ui.ReportToolCall(funcName, JsonTools.Serialize(argsDict));
+
+                    string result = await toolExecutor(funcName, argsDict);
+                    UsageLogger.LogAction(funcName, result);
+
+                    var resultParts = BuildToolResponseParts(funcName, result);
+                    toolResponseParts.AddRange(resultParts);
+
+                    ui.ReportToolResult(result);
+                }
+            }
+
+            return (hasFunctionCall, toolResponseParts);
+        }
+
+        private List<object> BuildToolResponseParts(string funcName, string result)
+        {
+            var parts = new List<object>();
+
+            parts.Add(new
+            {
+                functionResponse = new
+                {
+                    name = funcName,
+                    response = new { content = result }
+                }
+            });
+
+            return parts;
         }
     }
 }

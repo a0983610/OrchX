@@ -103,7 +103,12 @@ namespace Antigravity02.Agents
 
                     ChatHistory.Add(modelContent);
 
-                    var (hasFunctionCall, toolResponseParts) = await ProcessModelPartsAsync(parts, ui, currentModelName);
+                    var (hasFunctionCall, toolResponseParts) = await Client.ProcessModelPartsAsync(
+                        parts, 
+                        ui, 
+                        currentModelName, 
+                        async (funcName, argsDict) => await ProcessToolCallAsync(funcName, argsDict, ui)
+                    );
 
                     if (hasFunctionCall)
                     {
@@ -148,7 +153,7 @@ namespace Antigravity02.Agents
                 string additionalInfo = BuildSystemFixedInfo();
                 if (!string.IsNullOrWhiteSpace(additionalInfo))
                 {
-                    AppendFixedInfoToLastUserMessage(requestContents, additionalInfo);
+                    Client.AppendFixedInfoToLastUserMessage(requestContents, additionalInfo);
                 }
             }
             catch (Exception)
@@ -166,7 +171,7 @@ namespace Antigravity02.Agents
 
         private async Task HandleTokenUsageAsync(Dictionary<string, object> data, string modelName, long elapsedMs, IAgentUI ui)
         {
-            var (promptTokens, candidateTokens, totalTokens) = ExtractTokenUsage(data);
+            var (promptTokens, candidateTokens, totalTokens) = Client.ExtractTokenUsage(data);
             UsageLogger.LogApiUsage(modelName, elapsedMs, promptTokens, candidateTokens, totalTokens);
 
             if (totalTokens >= TokenThresholdForCompression)
@@ -190,88 +195,7 @@ namespace Antigravity02.Agents
             return string.Empty;
         }
 
-        /// <summary>
-        /// 在送出 Request 之前，將固定的系統資訊附加到最後一筆 User Message。
-        /// </summary>
-        protected virtual void AppendFixedInfoToLastUserMessage(List<object> requestContents, string additionalInfo)
-        {
-            if (string.IsNullOrWhiteSpace(additionalInfo) || requestContents.Count == 0) return;
 
-            try
-            {
-                var lastMessage = requestContents[requestContents.Count - 1];
-                string serialized = JsonTools.Serialize(lastMessage);
-                var lastDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
-
-                if (lastDict != null && lastDict.ContainsKey("role") && lastDict["role"]?.ToString() == "user")
-                {
-                    var reqParts = lastDict["parts"] as System.Collections.ArrayList;
-                    if (reqParts != null && reqParts.Count > 0)
-                    {
-                        var textPart = reqParts[0] as Dictionary<string, object>;
-                        if (textPart != null && textPart.ContainsKey("text"))
-                        {
-                            string originalText = textPart["text"]?.ToString();
-                            textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
-                        }
-                    }
-                    requestContents[requestContents.Count - 1] = lastDict;
-                }
-            }
-            catch (Exception)
-            {
-                // 忽略錯誤，避免阻斷主要執行流程
-            }
-        }
-
-        private (int promptTokens, int candidateTokens, int totalTokens) ExtractTokenUsage(Dictionary<string, object> data)
-        {
-            int promptTokens = 0, candidateTokens = 0, totalTokens = 0;
-            if (data.ContainsKey("usageMetadata") && data["usageMetadata"] is Dictionary<string, object> usage)
-            {
-                if (usage.ContainsKey("promptTokenCount"))
-                    promptTokens = Convert.ToInt32(usage["promptTokenCount"]);
-                if (usage.ContainsKey("candidatesTokenCount"))
-                    candidateTokens = Convert.ToInt32(usage["candidatesTokenCount"]);
-                if (usage.ContainsKey("totalTokenCount"))
-                    totalTokens = Convert.ToInt32(usage["totalTokenCount"]);
-            }
-            return (promptTokens, candidateTokens, totalTokens);
-        }
-
-        private async Task<(bool hasFunctionCall, List<object> toolResponseParts)> ProcessModelPartsAsync(System.Collections.ArrayList parts, IAgentUI ui, string currentModelName)
-        {
-            bool hasFunctionCall = false;
-            var toolResponseParts = new List<object>();
-
-            foreach (Dictionary<string, object> part in parts)
-            {
-                if (part.ContainsKey("text"))
-                {
-                    ui.ReportTextResponse(part["text"].ToString(), currentModelName);
-                }
-
-                if (part.ContainsKey("functionCall"))
-                {
-                    hasFunctionCall = true;
-                    var call = part["functionCall"] as Dictionary<string, object>;
-                    string funcName = call["name"].ToString();
-                    var argsDict = (call["args"] as Dictionary<string, object>) ?? new Dictionary<string, object>();
-
-                    ui.ReportToolCall(funcName, JsonTools.Serialize(argsDict));
-
-                    string result = await ProcessToolCallAsync(funcName, argsDict, ui);
-                    UsageLogger.LogAction(funcName, result);
-
-                    var resultParts = BuildToolResponseParts(funcName, result);
-                    toolResponseParts.AddRange(resultParts);
-
-                    ui.ReportToolResult(result);
-                }
-            }
-
-            return (hasFunctionCall, toolResponseParts);
-        }
 
         private void HandleFunctionCallHistoryUpdate(List<object> toolResponseParts)
         {
@@ -469,23 +393,6 @@ namespace Antigravity02.Agents
             return ChatHistory.AsReadOnly();
         }
 
-        /// <summary>
-        /// 建立工具回應的 parts
-        /// </summary>
-        private List<object> BuildToolResponseParts(string funcName, string result)
-        {
-            var parts = new List<object>();
 
-            parts.Add(new
-            {
-                functionResponse = new
-                {
-                    name = funcName,
-                    response = new { content = result }
-                }
-            });
-
-            return parts;
-        }
     }
 }
