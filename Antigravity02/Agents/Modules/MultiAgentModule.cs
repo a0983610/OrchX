@@ -34,12 +34,12 @@ namespace Antigravity02.Agents
         /// </summary>
         private readonly Dictionary<string, ExpertSession> _sessions = new Dictionary<string, ExpertSession>(StringComparer.OrdinalIgnoreCase);
 
-        public MultiAgentModule(IAIClient smartClient)
+        public MultiAgentModule(BaseAgent agent)
         {
-            _client = smartClient;
+            _client = agent?.SmartClient;
             
             // 初始化專家可用工具模組
-            _fileModule = new FileModule(null); // 專家暫不支援快速模型摘要
+            _fileModule = new FileModule((BaseAgent)null); // 專家暫不支援快速模型摘要
             _httpModule = new HttpModule();
 
             // 收集工具宣告

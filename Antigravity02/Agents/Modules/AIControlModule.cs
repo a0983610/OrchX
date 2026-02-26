@@ -12,22 +12,20 @@ namespace Antigravity02.Agents
     /// </summary>
     public class AIControlModule : IAgentModule
     {
-        private readonly Action<string> _onSwitchMode;
-        private readonly Func<bool> _isSmartMode;
+        private readonly BaseAgent _agent;
         private readonly bool _hasDifferentFastModel;
 
-        public AIControlModule(Action<string> onSwitchMode, Func<bool> isSmartMode, bool hasDifferentFastModel = true)
+        public AIControlModule(BaseAgent agent)
         {
-            _onSwitchMode = onSwitchMode;
-            _isSmartMode = isSmartMode;
-            _hasDifferentFastModel = hasDifferentFastModel;
+            _agent = agent;
+            _hasDifferentFastModel = agent != null && agent.SmartClient.ModelName != agent.FastClient.ModelName;
         }
 
         public IEnumerable<object> GetToolDeclarations(IAIClient client)
         {
-            if (_hasDifferentFastModel)
+            if (_hasDifferentFastModel && _agent != null)
             {
-                bool isSmart = _isSmartMode?.Invoke() ?? true;
+                bool isSmart = _agent.IsSmartMode;
                 string description = isSmart
                     ? "切換 AI 思考模式。當前為[聰明模式]。若任務簡單，建議切換至 'fast' (快速模式) 以節省資源。"
                     : "切換 AI 思考模式。當前為[快速模式]。若任務複雜，建議切換至 'smart' (聰明模式) 以獲得更好的推理能力。";
@@ -50,10 +48,10 @@ namespace Antigravity02.Agents
 
         public Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
         {
-            if (funcName == "switch_model_mode")
+            if (funcName == "switch_model_mode" && _agent != null)
             {
                 string mode = args["mode"].ToString();
-                _onSwitchMode?.Invoke(mode);
+                _agent.SetModelMode(mode);
                 return Task.FromResult($"成功：已切換至 {mode} 模式。接下來的對話將使用此模式的模型進行回應。");
             }
             return Task.FromResult<string>(null);

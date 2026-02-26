@@ -15,12 +15,16 @@ namespace Antigravity02.Agents
         private readonly IAIClient _fastClient;
         private readonly bool _hasFastModel;
 
-        public FileModule(IAIClient fastClient = null)
+        public FileModule(BaseAgent agent)
         {
             _fileTools = new FileTools();
-            _fastClient = fastClient;
+            if (agent != null)
+            {
+                bool hasDifferentFastModel = agent.SmartClient.ModelName != agent.FastClient.ModelName;
+                _fastClient = hasDifferentFastModel ? agent.FastClient : null;
+            }
             // 簡單判斷：如果有傳入快速模型 client，就視為有能力處理 summary
-            _hasFastModel = fastClient != null;
+            _hasFastModel = _fastClient != null;
         }
 
         public IEnumerable<object> GetToolDeclarations(IAIClient client)

@@ -16,12 +16,10 @@ namespace Antigravity02.Agents
         public UniversalAgent(IAIClient smartClient, IAIClient fastClient, string systemInstruction = null) : base(smartClient, fastClient)
         {
             // 在此註冊所有模組
-            // 只有 Smart 和 Fast 為不同模型時，才啟用摘要功能（避免浪費相同模型的 API 呼叫）
-            bool hasDifferentFastModel = SmartClient.ModelName != FastClient.ModelName;
-            RegisterModule(new FileModule(hasDifferentFastModel ? FastClient : null));
+            RegisterModule(new FileModule(this));
             RegisterModule(new HttpModule());
-            RegisterModule(new AIControlModule(this.SetModelMode, () => this.IsSmartMode, hasDifferentFastModel));
-            RegisterModule(new MultiAgentModule(smartClient));
+            RegisterModule(new AIControlModule(this));
+            RegisterModule(new MultiAgentModule(this));
             // 未來可以輕鬆加入更多模組，例如：
             // RegisterModule(new WebSearchModule());
             // RegisterModule(new DatabaseModule());

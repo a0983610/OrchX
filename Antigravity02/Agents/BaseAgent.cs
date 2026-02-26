@@ -15,8 +15,8 @@ namespace Antigravity02.Agents
     /// </summary>
     public abstract class BaseAgent
     {
-        protected readonly IAIClient SmartClient;
-        protected readonly IAIClient FastClient;
+        public IAIClient SmartClient { get; }
+        public IAIClient FastClient { get; }
         private bool _useSmartModel = false; // 預設使用快速模型
 
         protected IAIClient Client => _useSmartModel ? SmartClient : FastClient;
