@@ -103,7 +103,7 @@ namespace Antigravity02.AIClient
             };
 
             var json = JsonTools.Serialize(requestBody);
-            int maxRetries = 1;
+            int maxRetries = 3;
             int currentRetry = 0;
             int delayMs = 2000;
 
@@ -140,7 +140,7 @@ namespace Antigravity02.AIClient
                     {
                         throw new Exception(
                             "Gemini API Quota Exceeded (429).\n" +
-                            "你超出了目前的 API 使用額度，或請求過於頻繁。\n" +
+                            "你超出的目前的 API 使用額度，或請求過於頻繁。\n" +
                             $"已達到最大重試次數 ({maxRetries} 次)。\n" +
                             "請檢查您的 Google AI Studio 方案或稍後再試。\n" +
                             "詳細錯誤資訊可至 logs 日誌中查看。"
