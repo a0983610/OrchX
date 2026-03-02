@@ -29,7 +29,6 @@ namespace Antigravity02.AIClient
         bool TryGetRoleAndPartsFromMessage(object messageObj, out string role, out IEnumerable<object> parts);
         object BuildToolResponsePart(string funcName, string result);
         object BuildFunctionMessageContent(List<object> toolResponseParts);
-        object BuildUserMessageContent(string text);
-        object BuildModelMessageContent(string text);
+        object BuildMessageContent(string role, string text);
     }
 }

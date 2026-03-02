@@ -175,7 +175,7 @@ namespace Antigravity02.Agents
                 historySnapshot = session.History.Count;
 
                 // 將使用者問題加入此專家的對話歷史
-                session.History.Add(_client.BuildUserMessageContent(question));
+                session.History.Add(_client.BuildMessageContent("user", question));
 
                 int maxIterations = 5;
                 int iterations = 0;

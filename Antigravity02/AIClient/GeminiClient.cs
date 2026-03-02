@@ -121,10 +121,7 @@ namespace Antigravity02.AIClient
         // 輔助方法：將單純字串轉為 API 所需的 contents 格式
         public object CreateSimpleContents(string prompt)
         {
-            return new[]
-            {
-                new { role = "user", parts = new[] { new { text = prompt } } }
-            };
+            return new[] { BuildMessageContent("user", prompt) };
         }
 
         public System.Collections.ArrayList ExtractResponseParts(Dictionary<string, object> data, out Dictionary<string, object> modelContent)
@@ -379,14 +376,9 @@ namespace Antigravity02.AIClient
             return new { role = "function", parts = toolResponseParts };
         }
 
-        public object BuildUserMessageContent(string text)
+        public object BuildMessageContent(string role, string text)
         {
-            return new { role = "user", parts = new[] { new { text = text } } };
-        }
-
-        public object BuildModelMessageContent(string text)
-        {
-            return new { role = "model", parts = new[] { new { text = text } } };
+            return new { role = role, parts = new[] { new { text = text } } };
         }
 
         private List<object> BuildToolResponseParts(string funcName, string result)

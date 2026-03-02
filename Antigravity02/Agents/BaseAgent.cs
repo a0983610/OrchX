@@ -141,7 +141,7 @@ namespace Antigravity02.Agents
             string finalPrompt = EnableTimestampHeader ? 
                 $"[Current Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}]\n{userPrompt}" : 
                 userPrompt;
-            ChatHistory.Add(Client.BuildUserMessageContent(finalPrompt));
+            ChatHistory.Add(Client.BuildMessageContent("user", finalPrompt));
         }
 
         private GenerateContentRequest CreateRequest()
@@ -305,7 +305,7 @@ namespace Antigravity02.Agents
             {
                 Contents = new List<object>
                 {
-                    FastClient.BuildUserMessageContent(prompt)
+                    FastClient.BuildMessageContent("user", prompt)
                 }
             };
 
@@ -318,8 +318,8 @@ namespace Antigravity02.Agents
         private void ApplyHistoryCompression(int splitIndex, string summaryText, IAgentUI ui)
         {
             ChatHistory.RemoveRange(0, splitIndex);
-            ChatHistory.Insert(0, Client.BuildUserMessageContent("以下是之前對話的歷史摘要：\n" + summaryText));
-            ChatHistory.Insert(1, Client.BuildModelMessageContent("已收到歷史紀錄摘要，我會根據這些資訊上下文繼續回應並執行任務。"));
+            ChatHistory.Insert(0, Client.BuildMessageContent("user", "以下是之前對話的歷史摘要：\n" + summaryText));
+            ChatHistory.Insert(1, Client.BuildMessageContent("model", "已收到歷史紀錄摘要，我會根據這些資訊上下文繼續回應並執行任務。"));
             ui.ReportToolResult($"歷史紀錄 Token 過高，已自動將前半段 ({splitIndex} 則對話) 壓縮為摘要，釋放 Token 空間。");
         }
 
