@@ -15,6 +15,11 @@ namespace Antigravity02.Agents
     {
         public string Role { get; set; }
         public List<object> History { get; set; } = new List<object>();
+        
+        /// <summary>
+        /// 用於保護 History 集合的多執行緒存取
+        /// </summary>
+        public readonly object HistoryLock = new object();
     }
 
     /// <summary>
@@ -30,9 +35,9 @@ namespace Antigravity02.Agents
         private readonly HttpModule _httpModule;
 
         /// <summary>
-        /// 以 expert_name 為 Key 管理多個專家 Session
+        /// 以 expert_name 為 Key 管理多個專家 Session，支援多執行緒安全存取
         /// </summary>
-        private readonly Dictionary<string, ExpertSession> _sessions = new Dictionary<string, ExpertSession>(StringComparer.OrdinalIgnoreCase);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ExpertSession> _sessions = new System.Collections.Concurrent.ConcurrentDictionary<string, ExpertSession>(StringComparer.OrdinalIgnoreCase);
 
         public MultiAgentModule(BaseAgent agent)
         {
@@ -67,9 +72,24 @@ namespace Antigravity02.Agents
                     {
                         expert_name = new { type = "string", description = "專家的識別名稱 (例如 'security_expert', 'arch_expert')，用於多輪對話時識別同一位專家" },
                         question = new { type = "string", description = "要問專家的具體問題或任務內容" },
-                        role = new { type = "string", description = "專家的角色設定與專業背景 (System Instruction)。首次建立專家時必填，後續追問可省略" }
+                        role = new { type = "string", description = "專家的角色設定與專業背景 (System Instruction)。首次建立專家時必填，後續追問可省略" },
+                        is_async = new { type = "boolean", description = "是否使用非同步背景執行。若任務可能耗時較長請設為 true，系統會立即回傳 TaskId；若需要立即知道答案請設為 false (預設)。" }
                     },
                     required = new[] { "expert_name", "question" }
+                }
+            );
+
+            yield return client.CreateFunctionDeclaration(
+                "check_task_status",
+                "查詢非同步指派給專家的任務狀態與結果。",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        taskId = new { type = "string", description = "任務編號" }
+                    },
+                    required = new[] { "taskId" }
                 }
             );
 
@@ -109,7 +129,61 @@ namespace Antigravity02.Agents
                     string expertName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "default";
                     string question = args.ContainsKey("question") ? args["question"].ToString() : "";
                     string role = args.ContainsKey("role") ? args["role"].ToString() : null;
-                    return await ConsultExpertAsync(expertName, question, role, ui);
+                    
+                    bool isAsync = false;
+                    if (args.TryGetValue("is_async", out object valAsync) && valAsync != null)
+                    {
+                        if (valAsync is bool bVal) isAsync = bVal;
+                        else bool.TryParse(valAsync.ToString(), out isAsync);
+                    }
+
+                    if (!isAsync)
+                    {
+                        return await ConsultExpertAsync(expertName, question, role, ui);
+                    }
+                    else
+                    {
+                        var taskItem = TaskOrchestrator.AddTask(expertName, question);
+                        var safeUi = new SafeAgentUI(ui);
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Running, null);
+                                string result = await ConsultExpertAsync(expertName, question, role, safeUi);
+                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Completed, result);
+                            }
+                            catch (Exception ex)
+                            {
+                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Failed, $"Exception: {ex.Message}");
+                            }
+                        });
+                        return $"[System]: 任務已非同步指派給專家 {expertName}，任務編號為 {taskItem.TaskId}。您可以稍後呼叫 check_task_status 查詢進度與結果。";
+                    }
+
+                case "check_task_status":
+                    string errCTS = CheckRequiredArgs(funcName, args);
+                    if (errCTS != null) return errCTS;
+
+                    string tid = args.ContainsKey("taskId") ? args["taskId"].ToString() : "";
+                    var t = TaskOrchestrator.GetTask(tid);
+                    if (t == null)
+                    {
+                        return $"[System]: 找不到任務編號 {tid}";
+                    }
+
+                    if (t.Status == Antigravity02.Tools.TaskStatus.Completed)
+                    {
+                        return t.Result;
+                    }
+                    else if (t.Status == Antigravity02.Tools.TaskStatus.Failed)
+                    {
+                        return $"[System Error]: 任務 {tid} 執行失敗: {t.Result}";
+                    }
+                    else
+                    {
+                        return $"[System]: 任務 {tid} 仍在處理中，請稍候再查。";
+                    }
 
                 case "list_experts":
                     return ListExperts();
@@ -136,9 +210,8 @@ namespace Antigravity02.Agents
             {
                 // 取得或建立 Session
 
-                if (_sessions.ContainsKey(expertName))
+                if (_sessions.TryGetValue(expertName, out session))
                 {
-                    session = _sessions[expertName];
                     // 如果有提供新的 role，更新它 (允許動態調整專家角色)
                     if (!string.IsNullOrEmpty(role))
                     {
@@ -153,12 +226,37 @@ namespace Antigravity02.Agents
                         return $"[System Error]: 建立新專家 '{expertName}' 時必須提供 'role' 設定（專業背景與指導原則）。";
                     }
                     session = new ExpertSession { Role = role };
-                    _sessions[expertName] = session;
                     isNewSession = true;
+                    
+                    // 如果被其他執行緒搶先建立，則使用已經建立的版本
+                    session = _sessions.GetOrAdd(expertName, session);
+                    if (session.Role != role)
+                    {
+                         isNewSession = false; // 代表不是我們剛才建立的
+                         // 如果有提供新的 role，更新它 (允許動態調整專家角色)
+                         if (!string.IsNullOrEmpty(role))
+                         {
+                             session.Role = role;
+                         }
+                    }
+                }
+
+                int currentTurn = 0;
+                List<object> currentHistorySnapshot;
+                lock (session.HistoryLock)
+                {
+                    // 記錄快照點，用於異常時回滾
+                    historySnapshot = session.History.Count;
+                    currentTurn = (session.History.Count / 2) + 1;
+                    
+                    // 將使用者問題加入此專家的對話歷史
+                    session.History.Add(_client.BuildMessageContent("user", question));
+                    
+                    // 複製一份歷史供這輪對話使用
+                    currentHistorySnapshot = new List<object>(session.History);
                 }
 
                 // --- UI: 顯示諮詢開始 ---
-                int currentTurn = (session.History.Count / 2) + 1;
                 if (isNewSession)
                 {
                     ui.ReportInfo($"\n[Expert: {expertName}] 建立新專家 Session");
@@ -170,12 +268,6 @@ namespace Antigravity02.Agents
                 }
                 ui.ReportInfo($"[Expert: {expertName}] 提問: {Truncate(question, 120)}");
                 ui.ReportInfo($"[Expert: {expertName}] 等待回應中...");
-
-                // 記錄快照點，用於異常時回滾
-                historySnapshot = session.History.Count;
-
-                // 將使用者問題加入此專家的對話歷史
-                session.History.Add(_client.BuildMessageContent("user", question));
 
                 int maxIterations = 20;
                 int iterations = 0;
@@ -189,7 +281,7 @@ namespace Antigravity02.Agents
                     var request = new GenerateContentRequest
                     {
                         SystemInstruction = session.Role,
-                        Contents = session.History,
+                        Contents = currentHistorySnapshot,
                         Tools = _expertToolDeclarations.Count > 0 ? _expertToolDeclarations : null,
                         MockProviderName = $"gemini_expert_{expertName}"
                     };
@@ -205,7 +297,11 @@ namespace Antigravity02.Agents
                     // 將模型回應加入對話歷史 (保持多輪對話)
                     if (modelContent != null)
                     {
-                        session.History.Add(modelContent);
+                        lock (session.HistoryLock)
+                        {
+                            session.History.Add(modelContent);
+                            currentHistorySnapshot.Add(modelContent);
+                        }
                     }
 
                     bool hasFunctionCall = false;
@@ -243,7 +339,12 @@ namespace Antigravity02.Agents
                     if (hasFunctionCall)
                     {
                         // 加入 function 回應，繼續下一輪
-                        session.History.Add(_client.BuildFunctionMessageContent(toolResponseParts));
+                        var funcMessage = _client.BuildFunctionMessageContent(toolResponseParts);
+                        lock (session.HistoryLock)
+                        {
+                            session.History.Add(funcMessage);
+                            currentHistorySnapshot.Add(funcMessage);
+                        }
                     }
                     else
                     {
@@ -258,7 +359,11 @@ namespace Antigravity02.Agents
 
                 if (finalResponseText != null)
                 {
-                    int turnCount = session.History.Count / 2;
+                    int turnCount;
+                    lock (session.HistoryLock)
+                    {
+                         turnCount = session.History.Count / 2;
+                    }
                     string sessionInfo = isNewSession
                         ? $" (新建專家 Session，角色: {Truncate(session.Role, 50)})"
                         : $" (第 {turnCount} 輪對話)";
@@ -267,18 +372,27 @@ namespace Antigravity02.Agents
                 }
 
                 // 回應失敗時，回滾到快照點（清除本次所有殘留記錄）
-                if (session.History.Count > historySnapshot)
+                lock (session.HistoryLock)
                 {
-                    session.History.RemoveRange(historySnapshot, session.History.Count - historySnapshot);
+                    if (session.History.Count > historySnapshot)
+                    {
+                        session.History.RemoveRange(historySnapshot, session.History.Count - historySnapshot);
+                    }
                 }
                 return $"[System]: 專家 {expertName} 沒有回應或超出反覆迭代次數。";
             }
             catch (Exception ex)
             {
                 // 異常時回滾：回到快照點，清除迴圈中所有殘留記錄
-                if (session != null && session.History.Count > historySnapshot)
+                if (session != null)
                 {
-                    session.History.RemoveRange(historySnapshot, session.History.Count - historySnapshot);
+                    lock (session.HistoryLock)
+                    {
+                        if (session.History.Count > historySnapshot)
+                        {
+                            session.History.RemoveRange(historySnapshot, session.History.Count - historySnapshot);
+                        }
+                    }
                 }
                 UsageLogger.LogError($"ConsultExpert({expertName}) Error: {ex.Message}");
                 return $"[System Error] 諮詢專家 {expertName} 時發生錯誤: {ex.Message}";
@@ -298,7 +412,11 @@ namespace Antigravity02.Agents
 
             foreach (var kvp in _sessions)
             {
-                int turns = kvp.Value.History.Count / 2;
+                int turns;
+                lock (kvp.Value.HistoryLock)
+                {
+                     turns = kvp.Value.History.Count / 2;
+                }
                 string rolePreview = Truncate(kvp.Value.Role, 60);
                 sb.AppendLine($"  [{kvp.Key}] 對話輪數: {turns} | 角色: {rolePreview}");
             }
@@ -313,10 +431,13 @@ namespace Antigravity02.Agents
                 return "[System]: 請指定要結束的專家名稱。";
             }
 
-            if (_sessions.ContainsKey(expertName))
+            if (_sessions.TryRemove(expertName, out var sessionToRemove))
             {
-                int turns = _sessions[expertName].History.Count / 2;
-                _sessions.Remove(expertName);
+                int turns;
+                lock (sessionToRemove.HistoryLock)
+                {
+                     turns = sessionToRemove.History.Count / 2;
+                }
                 return $"已結束專家 {expertName} 的 Session（共進行了 {turns} 輪對話）。";
             }
 
@@ -327,6 +448,23 @@ namespace Antigravity02.Agents
         {
             if (string.IsNullOrEmpty(text)) return "";
             return text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text;
+        }
+
+        private class SafeAgentUI : IAgentUI
+        {
+            private readonly IAgentUI _inner;
+            public SafeAgentUI(IAgentUI inner) { _inner = inner; }
+            public void ReportThinking(int iteration, string modelName) { try { _inner?.ReportThinking(iteration, modelName); } catch { } }
+            public void ReportToolCall(string toolName, string args) { try { _inner?.ReportToolCall(toolName, args); } catch { } }
+            public void ReportToolResult(string resultSummary) { try { _inner?.ReportToolResult(resultSummary); } catch { } }
+            public void ReportTextResponse(string text, string modelName) { try { _inner?.ReportTextResponse(text, modelName); } catch { } }
+            public void ReportError(string message) { try { _inner?.ReportError(message); } catch { } }
+            public void ReportInfo(string message) { try { _inner?.ReportInfo(message); } catch { } }
+            public Task<bool> PromptContinueAsync(string message)
+            {
+                try { return _inner != null ? _inner.PromptContinueAsync(message) : Task.FromResult(true); }
+                catch { return Task.FromResult(true); }
+            }
         }
     }
 }

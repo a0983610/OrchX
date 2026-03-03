@@ -21,11 +21,11 @@ namespace Antigravity02.Tools
         public DateTime CreatedTime { get; set; } = DateTime.Now;
     }
 
-    public class TaskOrchestrator
+    public static class TaskOrchestrator
     {
-        private readonly ConcurrentDictionary<string, TaskItem> _tasks = new ConcurrentDictionary<string, TaskItem>();
+        private static readonly ConcurrentDictionary<string, TaskItem> _tasks = new ConcurrentDictionary<string, TaskItem>();
 
-        public TaskItem AddTask(string expert, string question)
+        public static TaskItem AddTask(string expert, string question)
         {
             var task = new TaskItem
             {
@@ -41,7 +41,7 @@ namespace Antigravity02.Tools
             return task;
         }
 
-        public void UpdateTask(string id, TaskStatus status, string result)
+        public static void UpdateTask(string id, TaskStatus status, string result)
         {
             if (_tasks.TryGetValue(id, out var task))
             {
@@ -53,7 +53,7 @@ namespace Antigravity02.Tools
             }
         }
 
-        public TaskItem GetTask(string id)
+        public static TaskItem GetTask(string id)
         {
             _tasks.TryGetValue(id, out var task);
             return task;
