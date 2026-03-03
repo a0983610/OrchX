@@ -104,6 +104,21 @@ namespace Antigravity02.Agents
             );
 
             yield return client.CreateFunctionDeclaration(
+                "move_file",
+                "在 AI_Workspace 內部搬移檔案或重新命名檔案。",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        sourcePath = new { type = "string", description = "相對於 AI_Workspace 的來源檔案路徑 (例如 old_folder/notes.txt)" },
+                        destinationPath = new { type = "string", description = "相對於 AI_Workspace 的目標檔案路徑 (例如 new_folder/notes.txt)" }
+                    },
+                    required = new[] { "sourcePath", "destinationPath" }
+                }
+            );
+
+            yield return client.CreateFunctionDeclaration(
                 "update_file_line",
                 "修改 AI_Workspace 下文字檔中的特定行內容。行號從 1 開始。",
                 new
@@ -245,6 +260,11 @@ namespace Antigravity02.Agents
                     if (errDel != null) return errDel;
 
                     return _fileTools.DeleteFile(args["filePath"].ToString());
+                case "move_file":
+                    string errMove = CheckRequiredArgs(funcName, args);
+                    if (errMove != null) return errMove;
+
+                    return _fileTools.MoveFile(args["sourcePath"].ToString(), args["destinationPath"].ToString());
                 case "update_file_line":
                     string errUpd = CheckRequiredArgs(funcName, args);
                     if (errUpd != null) return errUpd;

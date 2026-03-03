@@ -339,7 +339,51 @@ namespace Antigravity02.Tools
             }
         }
 
+        /// <summary>
+        /// 6. 搬移檔案 (限制範圍)
+        /// </summary>
+        public string MoveFile(string sourceFileName, string destinationFileName)
+        {
+            try
+            {
+                // 自動移除 AI_Workspace 前綴 (若 AI 誤傳)
+                sourceFileName = StripOutputFolderPrefix(sourceFileName);
+                destinationFileName = StripOutputFolderPrefix(destinationFileName);
 
+                if (sourceFileName.Contains("..") || destinationFileName.Contains(".."))
+                    return "錯誤：格式不合法。";
+
+                string aiWorkspacePath = Path.GetFullPath(Path.Combine(_baseDirectory, _aiOutputFolder));
+                string sourcePath = Path.GetFullPath(Path.Combine(aiWorkspacePath, sourceFileName.TrimStart('/', '\\')));
+                string destinationPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, destinationFileName.TrimStart('/', '\\')));
+
+                // 安全檢查
+                if (!IsPathAllowed(sourcePath, aiWorkspacePath) || !IsPathAllowed(destinationPath, aiWorkspacePath))
+                    return "錯誤：超出授權範圍，僅可搬移 AI_Workspace 內的檔案。";
+
+                if (!File.Exists(sourcePath))
+                {
+                    return $"錯誤：找不到來源檔案 {sourceFileName}。";
+                }
+
+                // 確保目標資料夾存在
+                string targetDir = Path.GetDirectoryName(destinationPath);
+                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+
+                if (File.Exists(destinationPath))
+                {
+                     return $"錯誤：目標檔案 {destinationFileName} 已存在。";
+                }
+
+                File.Move(sourcePath, destinationPath);
+                return $"成功：已將檔案 {sourceFileName} 搬移至 {destinationFileName}";
+            }
+            catch (Exception ex)
+            {
+                UsageLogger.LogError($"FileTools(MoveFile) Error: {ex.Message}");
+                return $"錯誤：無法搬移檔案。{ex.Message}";
+            }
+        }
 
         /// <summary>
         /// 簡易的 .docx 文字提取 (透過讀取 zip 內的 word/document.xml)
