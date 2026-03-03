@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 using Antigravity02.AIClient;
@@ -188,11 +189,27 @@ namespace Antigravity02.Agents
         {
             var fileTools = new FileTools();
             string skillsData = fileTools.ReadSkills(fileTools.SkillsPath);
+            string additionalInfo = string.Empty;
+            
             if (!string.IsNullOrWhiteSpace(skillsData))
             {
-                return $"Available Skills (from read_skills):\n{skillsData}";
+                additionalInfo += $"Available Skills (from read_skills):\n{skillsData}\n\n";
             }
-            return string.Empty;
+
+            // 新增：讀取知識庫索引
+            string indexPath = Path.Combine(".agent", "knowledge", "00_INDEX.md").Replace("\\", "/");
+            string indexContent = fileTools.ReadFile(indexPath);
+            if (!string.IsNullOrWhiteSpace(indexContent) && !indexContent.StartsWith("錯誤"))
+            {
+                var lines = indexContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length > 20)
+                {
+                    indexContent = string.Join("\n", lines.Take(20)) + "\n... (Index truncated)";
+                }
+                additionalInfo += $"[Long-term Memory Index]\n{indexContent}\n";
+            }
+
+            return additionalInfo;
         }
 
 

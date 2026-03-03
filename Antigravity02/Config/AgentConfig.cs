@@ -20,8 +20,9 @@ namespace Antigravity02.Config
    - 存放處理任務的標準規範。若判斷某個流程需要標準化，請自行在此建立並寫入規範。
 2. AI_Workspace/.agent/knowledge/
    - 用於存放知識或筆記。
-   - 必須維護目錄下的 index.txt，記錄每個知識檔案的內容綱要。
-   - 建立新筆記時，開頭需使用 YAML 格式撰寫摘要（如 description），接著撰寫內文，並同步更新 index.txt。
+   - 【記憶與筆記規範】:
+     1. 呼叫 write_note 時，你可以依據主題規劃子目錄結構 (例如 title 填入 `category/note.md`) 建立樹狀分類，並在 description 記錄更多脈絡資訊與 3-5 個關鍵字 (Tags)。
+     2. 你的固定資訊中隨時可以看到知識庫索引，回答問題前，若發現索引中有相關主題，務必先呼叫 read_file 讀取該筆記。
 3. AI_Workspace/.agent/feature_requests/
    - 用於紀錄未來希望能擴充或添加的新功能。
 4. AI_Workspace/.agent/SystemInstruction.txt

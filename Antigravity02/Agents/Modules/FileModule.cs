@@ -161,6 +161,33 @@ namespace Antigravity02.Agents
                     required = new[] { "skillName", "name", "description", "content" }
                 }
             );
+
+            yield return client.CreateFunctionDeclaration(
+                "write_note",
+                "當 AI 判斷有值得長期保留的知識時呼叫。可自由規劃子目錄 (如 category/note.md) 建立樹狀結構。強制存入 AI_Workspace/.agent/knowledge/，並自動維護 00_INDEX.md 索引。",
+                new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        title = new { type = "string", description = "筆記的路徑與檔名 (例如 AI_Rules.md 或 frontend/React_Hooks.md)" },
+                        description = new { type = "string", description = "筆記的摘要或關鍵字" },
+                        content = new { type = "string", description = "詳細筆記內容" }
+                    },
+                    required = new[] { "title", "description", "content" }
+                }
+            );
+
+            yield return client.CreateFunctionDeclaration(
+                "search_knowledge_index",
+                "直接讀取並回傳 AI_Workspace/.agent/knowledge/00_INDEX.md 的內容，以檢索現有的知識筆記索引。",
+                new
+                {
+                    type = "object",
+                    properties = new { },
+                    required = new string[] { }
+                }
+            );
         }
 
         public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
@@ -284,8 +311,89 @@ namespace Antigravity02.Agents
                     string desc = args["description"].ToString();
                     string content = args["content"].ToString();
                     return _fileTools.WriteSkill(sName, name, desc, content);
+
+                case "write_note":
+                    string errWriteNote = CheckRequiredArgs(funcName, args);
+                    if (errWriteNote != null) return errWriteNote;
+
+                    string noteTitle = args["title"].ToString();
+                    if (!noteTitle.EndsWith(".md", StringComparison.OrdinalIgnoreCase) && !noteTitle.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        noteTitle += ".md";
+                    }
+                    string noteDesc = args["description"].ToString();
+                    string noteContent = args["content"].ToString();
+                    
+                    string knowledgePath = Path.Combine(".agent", "knowledge", noteTitle).Replace("\\", "/");
+                    string writeResult = _fileTools.WriteFile(knowledgePath, noteContent, false);
+                    if (writeResult.StartsWith("錯誤"))
+                    {
+                        return writeResult;
+                    }
+                    
+                    string updateIndexResult = UpdateKnowledgeIndex(noteTitle, noteDesc);
+                    return $"{writeResult}\n{updateIndexResult}";
+
+                case "search_knowledge_index":
+                    string indexPath = Path.Combine(".agent", "knowledge", "00_INDEX.md").Replace("\\", "/");
+                    string indexContent = _fileTools.ReadFile(indexPath);
+                    if (indexContent.StartsWith("錯誤：找不到檔案"))
+                    {
+                        return "目前尚無知識索引 (00_INDEX.md)。";
+                    }
+                    return indexContent;
+
                 default:
                     return null;
+            }
+        }
+
+        private string UpdateKnowledgeIndex(string title, string description)
+        {
+            try
+            {
+                string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
+                string knowledgeDir = Path.Combine(aiWorkspacePath, ".agent", "knowledge");
+                if (!Directory.Exists(knowledgeDir))
+                {
+                    Directory.CreateDirectory(knowledgeDir);
+                }
+
+                string indexPath = Path.Combine(knowledgeDir, "00_INDEX.md");
+                string today = DateTime.Now.ToString("yyyy-MM-dd");
+                
+                if (!File.Exists(indexPath))
+                {
+                    string initialContent = $"| 檔名 | 摘要/關鍵字 | 最後更新日期 |\n|---|---|---|\n| {title} | {description} | {today} |\n";
+                    File.WriteAllText(indexPath, initialContent, System.Text.Encoding.UTF8);
+                    return "已成功建立並更新 00_INDEX.md。";
+                }
+
+                var lines = new List<string>(File.ReadAllLines(indexPath, System.Text.Encoding.UTF8));
+                bool updated = false;
+                
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    if (lines[i].Trim().StartsWith($"| {title} |", StringComparison.OrdinalIgnoreCase) || 
+                        lines[i].Trim().StartsWith($"|{title}|", StringComparison.OrdinalIgnoreCase))
+                    {
+                        lines[i] = $"| {title} | {description} | {today} |";
+                        updated = true;
+                        break;
+                    }
+                }
+
+                if (!updated)
+                {
+                    lines.Add($"| {title} | {description} | {today} |");
+                }
+
+                File.WriteAllLines(indexPath, lines, System.Text.Encoding.UTF8);
+                return updated ? "已成功更新 00_INDEX.md 內現有紀錄。" : "已成功新增紀錄至 00_INDEX.md。";
+            }
+            catch (Exception ex)
+            {
+                return $"更新索引時發生例外: {ex.Message}";
             }
         }
 
