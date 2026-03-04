@@ -31,19 +31,6 @@ namespace Antigravity02.Agents
 
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
         {
-            yield return client.CreateFunctionDeclaration(
-                "ask_for_image",
-                "讀取並解析特定路徑的圖片。提供圖片檔案路徑後，即可獲取該圖片供視覺分析使用。注意：此工具無法與其他工具同時呼叫，請單獨使用。",
-                new
-                {
-                    type = "object",
-                    properties = new
-                    {
-                        filePath = new { type = "string", description = "圖片檔案相對於 AI_Workspace 的路徑 (例如 test.png 或 images/test.png)" }
-                    },
-                    required = new[] { "filePath" }
-                }
-            );
 
             yield return client.CreateFunctionDeclaration(
                 "list_files",
@@ -53,22 +40,27 @@ namespace Antigravity02.Agents
 
             yield return client.CreateFunctionDeclaration(
                 "read_file",
-                "讀取 AI_Workspace 下特定檔案的內容。支援 .txt, .md, .csv, .json, .docx, .cs 等文字格式。" + (_hasFastModel ? "若檔案過大，可指定 summaryQuery 來擷取重點。" : ""),
+                "讀取 AI_Workspace 下特定檔案的內容。支援一般文字格式 (如 .txt, .md, .csv, .json, .docx, .cs)，也可透過 isImage 參數讀取並解析圖片供視覺分析使用 (圖片模式無法與其他工具同時呼叫)。" + (_hasFastModel ? "若文字檔過大，可指定 summaryQuery 來擷取重點。" : ""),
                 _hasFastModel
                     ? (object)new
                     {
                         type = "object",
                         properties = new
                         {
-                            filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑 (例如 notes.txt)" },
-                            summaryQuery = new { type = "string", description = "僅讀取符合此查詢的重點 (選填，使用快速模型處理)" }
+                            filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑" },
+                            summaryQuery = new { type = "string", description = "僅讀取符合此查詢的重點 (選填，使用快速模型處理)" },
+                            isImage = new { type = "boolean", description = "是否將此檔案作為圖片讀取與視覺解析 (若為 true，請單獨呼叫此工具)" }
                         },
                         required = new[] { "filePath" }
                     }
                     : (object)new
                     {
                         type = "object",
-                        properties = new { filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑 (例如 notes.txt)" } },
+                        properties = new
+                        {
+                            filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑" },
+                            isImage = new { type = "boolean", description = "是否將此檔案作為圖片讀取與視覺解析 (若為 true，請單獨呼叫此工具)" }
+                        },
                         required = new[] { "filePath" }
                     }
             );
@@ -211,64 +203,6 @@ namespace Antigravity02.Agents
         {
             switch (funcName)
             {
-                case "ask_for_image":
-                    string errAskImg = CheckRequiredArgs(funcName, args);
-                    if (errAskImg != null) return errAskImg;
-
-                    string imgPath = args["filePath"].ToString();
-                    string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
-                    
-                    // 自動移除 AI_Workspace 前綴 (若 AI 誤傳)
-                    string cleanedPath = imgPath;
-                    string prefixSlash = "AI_Workspace/";
-                    string prefixBackslash = "AI_Workspace\\";
-                    if (cleanedPath.StartsWith(prefixSlash, StringComparison.OrdinalIgnoreCase))
-                        cleanedPath = cleanedPath.Substring(prefixSlash.Length);
-                    else if (cleanedPath.StartsWith(prefixBackslash, StringComparison.OrdinalIgnoreCase))
-                        cleanedPath = cleanedPath.Substring(prefixBackslash.Length);
-
-                    if (!File.Exists(cleanedPath))
-                    {
-                        // 嘗試以 AI_Workspace 相對路徑解析
-                        string workspaceImgPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, cleanedPath.TrimStart('/', '\\')));
-                        if (File.Exists(workspaceImgPath))
-                        {
-                            cleanedPath = workspaceImgPath;
-                        }
-                        else
-                        {
-                            return $"[Error] 找不到檔案: {imgPath} (已嘗試絕對路徑與 AI_Workspace 相對路徑)";
-                        }
-                    }
-                    imgPath = cleanedPath;
-
-                    try
-                    {
-                        string ext = Path.GetExtension(imgPath).ToLower();
-                        string mime = "image/jpeg";
-                        if (ext == ".png") mime = "image/png";
-                        else if (ext == ".webp") mime = "image/webp";
-                        else if (ext == ".heic") mime = "image/heic";
-                        else if (ext == ".heif") mime = "image/heif";
-                        
-                        byte[] bytes = File.ReadAllBytes(imgPath);
-                        string base64 = Convert.ToBase64String(bytes);
-                        
-                        if (_agent != null)
-                        {
-                            if (!_agent.InjectImageHistory(imgPath, mime, base64))
-                            {
-                                return "[Error] ask_for_image 無法與其他工具同時呼叫，請單獨使用此工具來讀取圖片。";
-                            }
-                        }
-                        
-                        return "[SKIP_FUNCTION_RESPONSE]";
-                    }
-                    catch (Exception ex)
-                    {
-                        return $"[Error] 讀取圖片失敗: {ex.Message}";
-                    }
-
                 case "list_files":
                     string subPath = args.ContainsKey("path") ? args["path"].ToString() : "";
                     return _fileTools.ListFiles(subPath);
@@ -276,13 +210,68 @@ namespace Antigravity02.Agents
                     string errRead = CheckRequiredArgs(funcName, args);
                     if (errRead != null) return errRead;
 
+                    bool isImage = args.ContainsKey("isImage") && Convert.ToBoolean(args["isImage"]);
+                    if (isImage)
+                    {
+                        string imgPath = args["filePath"].ToString();
+                        string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
+                        
+                        string cleanedPath = imgPath;
+                        string prefixSlash = "AI_Workspace/";
+                        string prefixBackslash = "AI_Workspace\\";
+                        if (cleanedPath.StartsWith(prefixSlash, StringComparison.OrdinalIgnoreCase))
+                            cleanedPath = cleanedPath.Substring(prefixSlash.Length);
+                        else if (cleanedPath.StartsWith(prefixBackslash, StringComparison.OrdinalIgnoreCase))
+                            cleanedPath = cleanedPath.Substring(prefixBackslash.Length);
+
+                        if (!File.Exists(cleanedPath))
+                        {
+                            string workspaceImgPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, cleanedPath.TrimStart('/', '\\')));
+                            if (File.Exists(workspaceImgPath))
+                            {
+                                cleanedPath = workspaceImgPath;
+                            }
+                            else
+                            {
+                                return $"[Error] 找不到圖片檔案: {imgPath} (已嘗試絕對路徑與 AI_Workspace 相對路徑)";
+                            }
+                        }
+                        imgPath = cleanedPath;
+
+                        try
+                        {
+                            string ext = Path.GetExtension(imgPath).ToLower();
+                            string mime = "image/jpeg";
+                            if (ext == ".png") mime = "image/png";
+                            else if (ext == ".webp") mime = "image/webp";
+                            else if (ext == ".heic") mime = "image/heic";
+                            else if (ext == ".heif") mime = "image/heif";
+                            
+                            byte[] bytes = File.ReadAllBytes(imgPath);
+                            string base64 = Convert.ToBase64String(bytes);
+                            
+                            if (_agent != null)
+                            {
+                                if (!_agent.InjectImageHistory(imgPath, mime, base64))
+                                {
+                                    return "[Error] 讀取圖片 (isImage=true) 無法與其他工具同時呼叫，請單獨使用此工具來讀取圖片。";
+                                }
+                            }
+                            
+                            return "[SKIP_FUNCTION_RESPONSE]";
+                        }
+                        catch (Exception ex)
+                        {
+                            return $"[Error] 讀取圖片失敗: {ex.Message}";
+                        }
+                    }
+
                     string fileContent = _fileTools.ReadFile(args["filePath"].ToString());
                     string fileQuery = args.ContainsKey("summaryQuery") ? args["summaryQuery"].ToString() : null;
 
                     if (_hasFastModel && !string.IsNullOrEmpty(fileQuery))
                     {
                         string summary = await SummarizeContentAsync(fileContent, fileQuery);
-                        // 如果快速模型失敗，回傳完整內容，但加上標註
                         if (summary.StartsWith("[Fast AI Error]"))
                         {
                             return summary + "\n\n[Warning: Summary failed, falling back to full content] 以下是原始檔案內容：\n" + fileContent;
