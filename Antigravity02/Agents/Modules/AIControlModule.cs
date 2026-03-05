@@ -50,14 +50,19 @@ namespace Antigravity02.Agents
         {
             if (funcName == "switch_model_mode" && _agent != null)
             {
-                string error = CheckRequiredArgs(funcName, args);
-                if (error != null) return Task.FromResult(error);
-
-                string mode = args["mode"].ToString();
-                _agent.SetModelMode(mode);
-                return Task.FromResult($"成功：已切換至 {mode} 模式。接下來的對話將使用此模式的模型進行回應。");
+                return HandleSwitchModelMode(funcName, args);
             }
             return Task.FromResult<string>(null);
+        }
+
+        private Task<string> HandleSwitchModelMode(string funcName, Dictionary<string, object> args)
+        {
+            string error = CheckRequiredArgs(funcName, args);
+            if (error != null) return Task.FromResult(error);
+
+            string mode = args["mode"].ToString();
+            _agent.SetModelMode(mode);
+            return Task.FromResult($"成功：已切換至 {mode} 模式。接下來的對話將使用此模式的模型進行回應。");
         }
     }
 }

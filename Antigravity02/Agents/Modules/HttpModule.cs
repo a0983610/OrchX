@@ -53,26 +53,34 @@ namespace Antigravity02.Agents
             switch (funcName)
             {
                 case "http_get":
-                    string errGet = CheckRequiredArgs(funcName, args);
-                    if (errGet != null) return errGet;
-
-                    string getUrl = args["url"].ToString();
-                    string getHeaders = args.ContainsKey("headers") ? args["headers"].ToString() : null;
-                    return await _httpTools.GetAsync(getUrl, getHeaders);
-
+                    return await HandleHttpGetAsync(funcName, args);
                 case "http_post":
-                    string errPost = CheckRequiredArgs(funcName, args);
-                    if (errPost != null) return errPost;
-
-                    string postUrl = args["url"].ToString();
-                    string body = args["body"].ToString();
-                    string contentType = args.ContainsKey("contentType") ? args["contentType"].ToString() : "application/json";
-                    string postHeaders = args.ContainsKey("headers") ? args["headers"].ToString() : null;
-                    return await _httpTools.PostAsync(postUrl, body, contentType, postHeaders);
-
+                    return await HandleHttpPostAsync(funcName, args);
                 default:
                     return null;
             }
+        }
+
+        private async Task<string> HandleHttpGetAsync(string funcName, Dictionary<string, object> args)
+        {
+            string errGet = CheckRequiredArgs(funcName, args);
+            if (errGet != null) return errGet;
+
+            string getUrl = args["url"].ToString();
+            string getHeaders = args.ContainsKey("headers") ? args["headers"].ToString() : null;
+            return await _httpTools.GetAsync(getUrl, getHeaders);
+        }
+
+        private async Task<string> HandleHttpPostAsync(string funcName, Dictionary<string, object> args)
+        {
+            string errPost = CheckRequiredArgs(funcName, args);
+            if (errPost != null) return errPost;
+
+            string postUrl = args["url"].ToString();
+            string body = args["body"].ToString();
+            string contentType = args.ContainsKey("contentType") ? args["contentType"].ToString() : "application/json";
+            string postHeaders = args.ContainsKey("headers") ? args["headers"].ToString() : null;
+            return await _httpTools.PostAsync(postUrl, body, contentType, postHeaders);
         }
     }
 }

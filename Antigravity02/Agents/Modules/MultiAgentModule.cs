@@ -123,81 +123,96 @@ namespace Antigravity02.Agents
             switch (funcName)
             {
                 case "consult_expert":
-                    string errCE = CheckRequiredArgs(funcName, args);
-                    if (errCE != null) return errCE;
-
-                    string expertName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "default";
-                    string question = args.ContainsKey("question") ? args["question"].ToString() : "";
-                    string role = args.ContainsKey("role") ? args["role"].ToString() : null;
-                    
-                    bool isAsync = false;
-                    if (args.TryGetValue("is_async", out object valAsync) && valAsync != null)
-                    {
-                        if (valAsync is bool bVal) isAsync = bVal;
-                        else bool.TryParse(valAsync.ToString(), out isAsync);
-                    }
-
-                    if (!isAsync)
-                    {
-                        return await ConsultExpertAsync(expertName, question, role, ui);
-                    }
-                    else
-                    {
-                        var taskItem = TaskOrchestrator.AddTask(expertName, question);
-                        var safeUi = new SafeAgentUI(ui);
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Running, null);
-                                string result = await ConsultExpertAsync(expertName, question, role, safeUi);
-                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Completed, result);
-                            }
-                            catch (Exception ex)
-                            {
-                                TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Failed, $"Exception: {ex.Message}");
-                            }
-                        });
-                        return $"[System]: 任務已非同步指派給專家 {expertName}，任務編號為 {taskItem.TaskId}。您可以稍後呼叫 check_task_status 查詢進度與結果。";
-                    }
+                    return await HandleConsultExpertAsync(funcName, args, ui);
 
                 case "check_task_status":
-                    string errCTS = CheckRequiredArgs(funcName, args);
-                    if (errCTS != null) return errCTS;
-
-                    string tid = args.ContainsKey("taskId") ? args["taskId"].ToString() : "";
-                    var t = TaskOrchestrator.GetTask(tid);
-                    if (t == null)
-                    {
-                        return $"[System]: 找不到任務編號 {tid}";
-                    }
-
-                    if (t.Status == Antigravity02.Tools.TaskStatus.Completed)
-                    {
-                        return t.Result;
-                    }
-                    else if (t.Status == Antigravity02.Tools.TaskStatus.Failed)
-                    {
-                        return $"[System Error]: 任務 {tid} 執行失敗: {t.Result}";
-                    }
-                    else
-                    {
-                        return $"[System]: 任務 {tid} 仍在處理中，請稍候再查。";
-                    }
+                    return HandleCheckTaskStatus(funcName, args);
 
                 case "list_experts":
                     return ListExperts();
 
                 case "dismiss_expert":
-                    string errDE = CheckRequiredArgs(funcName, args);
-                    if (errDE != null) return errDE;
-
-                    string dismissName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "";
-                    return DismissExpert(dismissName);
+                    return HandleDismissExpert(funcName, args);
 
                 default:
                     return null;
             }
+        }
+
+        private async Task<string> HandleConsultExpertAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        {
+            string errCE = CheckRequiredArgs(funcName, args);
+            if (errCE != null) return errCE;
+
+            string expertName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "default";
+            string question = args.ContainsKey("question") ? args["question"].ToString() : "";
+            string role = args.ContainsKey("role") ? args["role"].ToString() : null;
+            
+            bool isAsync = false;
+            if (args.TryGetValue("is_async", out object valAsync) && valAsync != null)
+            {
+                if (valAsync is bool bVal) isAsync = bVal;
+                else bool.TryParse(valAsync.ToString(), out isAsync);
+            }
+
+            if (!isAsync)
+            {
+                return await ConsultExpertAsync(expertName, question, role, ui);
+            }
+            else
+            {
+                var taskItem = TaskOrchestrator.AddTask(expertName, question);
+                var safeUi = new SafeAgentUI(ui);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Running, null);
+                        string result = await ConsultExpertAsync(expertName, question, role, safeUi);
+                        TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Completed, result);
+                    }
+                    catch (Exception ex)
+                    {
+                        TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Failed, $"Exception: {ex.Message}");
+                    }
+                });
+                return $"[System]: 任務已非同步指派給專家 {expertName}，任務編號為 {taskItem.TaskId}。您可以稍後呼叫 check_task_status 查詢進度與結果。";
+            }
+        }
+
+        private string HandleCheckTaskStatus(string funcName, Dictionary<string, object> args)
+        {
+            string errCTS = CheckRequiredArgs(funcName, args);
+            if (errCTS != null) return errCTS;
+
+            string tid = args.ContainsKey("taskId") ? args["taskId"].ToString() : "";
+            var t = TaskOrchestrator.GetTask(tid);
+            if (t == null)
+            {
+                return $"[System]: 找不到任務編號 {tid}";
+            }
+
+            if (t.Status == Antigravity02.Tools.TaskStatus.Completed)
+            {
+                return t.Result;
+            }
+            else if (t.Status == Antigravity02.Tools.TaskStatus.Failed)
+            {
+                return $"[System Error]: 任務 {tid} 執行失敗: {t.Result}";
+            }
+            else
+            {
+                return $"[System]: 任務 {tid} 仍在處理中，請稍候再查。";
+            }
+        }
+
+        private string HandleDismissExpert(string funcName, Dictionary<string, object> args)
+        {
+            string errDE = CheckRequiredArgs(funcName, args);
+            if (errDE != null) return errDE;
+
+            string dismissName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "";
+            return DismissExpert(dismissName);
         }
 
         private async Task<string> ConsultExpertAsync(string expertName, string question, string role, IAgentUI ui)
