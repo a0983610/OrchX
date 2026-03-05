@@ -355,13 +355,46 @@ namespace Antigravity02.Agents
             var historyToCompress = ChatHistory.GetRange(0, actualSplitIndex);
             string jsonToCompress = JsonTools.Serialize(historyToCompress);
 
-            string compressPrompt = "請將以下歷史對話紀錄進行詳細摘要，保留重要的上下文、決策過程、變數設定與關鍵資訊：\n\n" + jsonToCompress;
+            string compressPrompt = "請將以下歷史對話紀錄進行詳細摘要，保留重要的上下文、決策過程、變數設定與關鍵資訊。\n" +
+                                    "此外，如果有任何明確的、未來可能會用到的確切資訊（例如特定的路徑、命令、設定值、剛剛確定的規則），請將這些明確資訊獨立列出。\n" +
+                                    "請嚴格使用以下 XML 標籤格式輸出：\n" +
+                                    "<Summary>\n你的摘要內容\n</Summary>\n" +
+                                    "<Knowledge>\n明確資訊（條列式）\n</Knowledge>\n\n" +
+                                    "歷史對話紀錄如下：\n" + jsonToCompress;
 
             try
             {
-                string summaryText = await GenerateSummaryAsync(compressPrompt);
-                if (summaryText != null)
+                string resultText = await GenerateSummaryAsync(compressPrompt);
+                if (resultText != null)
                 {
+                    string summaryText = resultText;
+                    string knowledgeText = "";
+
+                    var summaryMatch = System.Text.RegularExpressions.Regex.Match(resultText, @"<Summary>\s*(.*?)\s*</Summary>", System.Text.RegularExpressions.RegexOptions.Singleline);
+                    var knowledgeMatch = System.Text.RegularExpressions.Regex.Match(resultText, @"<Knowledge>\s*(.*?)\s*</Knowledge>", System.Text.RegularExpressions.RegexOptions.Singleline);
+
+                    if (summaryMatch.Success) summaryText = summaryMatch.Groups[1].Value.Trim();
+                    if (knowledgeMatch.Success) knowledgeText = knowledgeMatch.Groups[1].Value.Trim();
+
+                    if (!string.IsNullOrWhiteSpace(knowledgeText))
+                    {
+                        try
+                        {
+                            var fileTools = new FileTools();
+                            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                            string knowledgeFileName = $".agent/knowledge/history_{timestamp}.md";
+                            
+                            fileTools.WriteFile(knowledgeFileName, "# 歷史紀錄自動萃取資訊\n\n" + knowledgeText, append: false);
+                            
+                            string indexPath = ".agent/knowledge/00_INDEX.md";
+                            fileTools.WriteFile(indexPath, $"\n- [{Path.GetFileName(knowledgeFileName)}] 歷史紀錄過長壓縮時自動萃取的明確資訊", append: true);
+                        }
+                        catch (Exception kex)
+                        {
+                            UsageLogger.LogError($"Save Knowledge Error: {kex.Message}");
+                        }
+                    }
+
                     ApplyHistoryCompression(actualSplitIndex, summaryText, ui);
                 }
             }
