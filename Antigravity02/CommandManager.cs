@@ -129,13 +129,13 @@ namespace Antigravity02
         {
             if (chatHistory == null || chatHistory.Count == 0)
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.ForegroundColor = ConsoleColor.Gray;
                 Console.WriteLine("[System] 對話紀錄為空。");
                 Console.ResetColor();
                 return;
             }
 
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("\n=== 載入的對話紀錄 ===");
             Console.ResetColor();
 
@@ -149,7 +149,7 @@ namespace Antigravity02
                     {
                         if (client.TryGetTextFromPart(part, out string text))
                         {
-                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine($"\nUser: {text}");
                             Console.ResetColor();
                         }
@@ -167,7 +167,7 @@ namespace Antigravity02
                         }
                         if (client.TryGetFunctionCallFromPart(part, out string funcName, out var args))
                         {
-                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.ForegroundColor = ConsoleColor.Blue;
                             Console.WriteLine($"  [Tool Call] {funcName ?? "?"}");
                             Console.ResetColor();
                         }
@@ -181,7 +181,7 @@ namespace Antigravity02
                         {
                             content = content ?? "";
                             string summary = content.Length > 80 ? content.Substring(0, 80) + "..." : content;
-                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.ForegroundColor = ConsoleColor.Gray;
                             Console.WriteLine($"  [Tool Result] {funcName ?? "?"}: {summary}");
                             Console.ResetColor();
                         }
@@ -189,7 +189,7 @@ namespace Antigravity02
                 }
             }
 
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("=== 對話紀錄結束 ===\n");
             Console.ResetColor();
         }
@@ -281,7 +281,7 @@ namespace Antigravity02
                     lastHintCount = suggestions.Count;
                     if (suggestions.Count > 0)
                     {
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
+                        Console.ForegroundColor = ConsoleColor.Gray;
                         for (int i = 0; i < suggestions.Count; i++)
                         {
                             int targetRow = promptTop + 1 + i;

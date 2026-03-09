@@ -101,8 +101,8 @@ namespace Antigravity02
         {
             while (true)
             {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write("\nUser: ");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.Write($"\nUser: ");
                 Console.ResetColor();
 
                 string input = CommandManager.ReadConsoleInput();
@@ -136,7 +136,7 @@ namespace Antigravity02
             if (args.Length == 0) return false;
 
             string initialInput = string.Join(" ", args);
-            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine($"\n[Startup Command] Detected arguments: {initialInput}");
             Console.ResetColor();
 
