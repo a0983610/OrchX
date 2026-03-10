@@ -195,6 +195,32 @@ namespace Antigravity02
         }
 
         /// <summary>
+        /// 計算字串的顯示寬度（全形字元算 2 寬度）
+        /// </summary>
+        private static int GetDisplayWidth(string text, int endIndex = -1)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            if (endIndex < 0 || endIndex > text.Length) endIndex = text.Length;
+            int width = 0;
+            for (int i = 0; i < endIndex; i++)
+            {
+                char c = text[i];
+                if ((c >= 0x4E00 && c <= 0x9FFF) ||
+                    (c >= 0x3400 && c <= 0x4DBF) ||
+                    (c >= 0x3000 && c <= 0x303F) ||
+                    (c >= 0xFF00 && c <= 0xFFEF))
+                {
+                    width += 2;
+                }
+                else
+                {
+                    width += 1;
+                }
+            }
+            return width;
+        }
+
+        /// <summary>
         /// 提供具備自動完成與指令提示功能的控制台輸入讀取機制
         /// </summary>
         public static string ReadConsoleInput()
@@ -212,6 +238,9 @@ namespace Antigravity02
             {
                 return Console.ReadLine();
             }
+
+            bool originalCursorVisible = true;
+            try { originalCursorVisible = Console.CursorVisible; } catch { }
 
             try
             {
@@ -238,7 +267,8 @@ namespace Antigravity02
                 string[] allCommands = { "/new", "/save", "/load", "/time", "/rmock", "/help", "/exit" };
                 int lastHintCount = 0;
                 const int maxHintDisplay = 5;
-                int maxInputLength = Console.WindowWidth - promptLeft - 2; // 防止超出一行寬度
+                int maxDisplayWidth = Console.WindowWidth - promptLeft - 2; // 防止超出一行寬度
+                int previousInputWidth = 0;
 
                 void ClearHints()
                 {
@@ -254,12 +284,18 @@ namespace Antigravity02
 
                 while (true)
                 {
+                    try { Console.CursorVisible = false; } catch { }
+
+                    string currentInputStr = input.ToString();
+                    int currentStrWidth = GetDisplayWidth(currentInputStr);
+                    int padSpaces = Math.Max(2, previousInputWidth - currentStrWidth + 2);
+
                     // Draw input line
                     Console.SetCursorPosition(promptLeft, promptTop);
-                    Console.Write(input.ToString() + " "); 
-                    Console.SetCursorPosition(promptLeft + cursorIndex, promptTop);
+                    Console.Write(currentInputStr + new string(' ', padSpaces)); 
+                    previousInputWidth = currentStrWidth;
 
-                    string currentInput = input.ToString();
+                    string currentInput = currentInputStr;
                     var suggestions = new System.Collections.Generic.List<string>();
                     
                     // 只有輸入至少 2 個字元（如 /s）才開始提示，避免輸入 / 時顯示全部指令
@@ -292,7 +328,9 @@ namespace Antigravity02
                         Console.ResetColor();
                     }
 
-                    Console.SetCursorPosition(promptLeft + cursorIndex, promptTop);
+                    Console.SetCursorPosition(promptLeft + GetDisplayWidth(currentInputStr, cursorIndex), promptTop);
+
+                    try { Console.CursorVisible = originalCursorVisible; } catch { }
 
                     var keyInfo = Console.ReadKey(intercept: true);
                     if (keyInfo.Key == ConsoleKey.Enter)
@@ -307,8 +345,6 @@ namespace Antigravity02
                         {
                             input.Remove(cursorIndex - 1, 1);
                             cursorIndex--;
-                            Console.SetCursorPosition(promptLeft + input.Length, promptTop);
-                            Console.Write(" ");
                         }
                     }
                     else if (keyInfo.Key == ConsoleKey.Delete)
@@ -316,8 +352,6 @@ namespace Antigravity02
                         if (cursorIndex < input.Length)
                         {
                             input.Remove(cursorIndex, 1);
-                            Console.SetCursorPosition(promptLeft + input.Length, promptTop);
-                            Console.Write(" ");
                         }
                     }
                     else if (keyInfo.Key == ConsoleKey.LeftArrow)
@@ -344,22 +378,17 @@ namespace Antigravity02
                             input.Clear();
                             input.Append(completion);
                             cursorIndex = input.Length;
-                            
-                            Console.SetCursorPosition(promptLeft, promptTop);
-                            Console.Write(new string(' ', Console.WindowWidth - promptLeft - 1));
                         }
                     }
                     else if (keyInfo.Key == ConsoleKey.Escape)
                     {
                         // Escape 清除目前的輸入
-                        Console.SetCursorPosition(promptLeft, promptTop);
-                        Console.Write(new string(' ', input.Length + 1));
                         input.Clear();
                         cursorIndex = 0;
                     }
                     else if (!char.IsControl(keyInfo.KeyChar))
                     {
-                        if (input.Length < maxInputLength)
+                        if (currentStrWidth + GetDisplayWidth(keyInfo.KeyChar.ToString()) <= maxDisplayWidth)
                         {
                             input.Insert(cursorIndex, keyInfo.KeyChar);
                             cursorIndex++;
@@ -373,6 +402,10 @@ namespace Antigravity02
             {
                 // Fallback in case of unexpected console error
                 return Console.ReadLine();
+            }
+            finally
+            {
+                try { Console.CursorVisible = originalCursorVisible; } catch { }
             }
         }
     }
