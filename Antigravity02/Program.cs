@@ -116,7 +116,7 @@ namespace Antigravity02
                 Console.Write($"\nUser: ");
                 Console.ResetColor();
 
-                string input = CommandManager.ReadConsoleInput();
+                string input = Antigravity02.UI.ConsoleInputHelper.ReadConsoleInput(CommandManager.GetRegisteredCommandNames());
                 if (input == null) break;
                 if (string.IsNullOrEmpty(input)) continue;
 

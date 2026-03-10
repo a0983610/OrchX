@@ -1,52 +1,58 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Antigravity02.Agents;
 
 namespace Antigravity02
 {
+    public delegate void CommandHandler(string args, BaseAgent agent, out bool shouldExit);
+
+    public class CommandDefinition
+    {
+        public string Name { get; }
+        public string Description { get; }
+        public CommandHandler Handler { get; }
+
+        public CommandDefinition(string name, string description, CommandHandler handler)
+        {
+            Name = name;
+            Description = description;
+            Handler = handler;
+        }
+    }
+
     public static class CommandManager
     {
-        public static bool TryHandleCommand(string input, BaseAgent agent, out bool shouldExit)
+        private static readonly Dictionary<string, CommandDefinition> _commands = new Dictionary<string, CommandDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        static CommandManager()
         {
-            shouldExit = false;
-            if (string.IsNullOrEmpty(input)) return false;
-
-            // 只處理以 / 開頭的指令
-            if (!input.StartsWith("/")) return false;
-
-            string cmd = input.Trim();
-
-            if (cmd.Equals("/exit", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/exit", "結束程式", (string args, BaseAgent agent, out bool shouldExit) =>
             {
                 shouldExit = true;
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/help", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/help", "顯示此幫助訊息", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 ShowHelp();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/new", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/new", "開始新的對話 (清除對話紀錄)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 agent.ClearChatHistory();
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("[System] 對話紀錄已清除，開始新的對話。");
                 Console.ResetColor();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/save", StringComparison.OrdinalIgnoreCase) || cmd.StartsWith("/save ", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/save", "儲存對話紀錄至檔案 (預設: chat_history.json)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 string path = "chat_history.json";
-                if (cmd.Length > 6)
-                {
-                    string arg = cmd.Substring(6).Trim();
-                    if (!string.IsNullOrEmpty(arg)) path = arg;
-                }
+                if (!string.IsNullOrWhiteSpace(args)) path = args.Trim();
                 if (agent.SaveChatHistory(path))
                 {
                     Console.WriteLine($"[System] Chat history saved to {path}");
@@ -57,17 +63,13 @@ namespace Antigravity02
                     Console.WriteLine($"[Error] Failed to save chat history to {path}");
                     Console.ResetColor();
                 }
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/load", StringComparison.OrdinalIgnoreCase) || cmd.StartsWith("/load ", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/load", "從檔案載入對話紀錄 (預設: chat_history.json)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 string path = "chat_history.json";
-                if (cmd.Length > 6)
-                {
-                    string arg = cmd.Substring(6).Trim();
-                    if (!string.IsNullOrEmpty(arg)) path = arg;
-                }
+                if (!string.IsNullOrWhiteSpace(args)) path = args.Trim();
                 if (agent.LoadChatHistory(path))
                 {
                     Console.WriteLine($"[System] Chat history loaded from {path}");
@@ -79,31 +81,60 @@ namespace Antigravity02
                     Console.WriteLine($"[Error] Failed to load chat history from {path}");
                     Console.ResetColor();
                 }
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/time", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/time", "切換使用者訊息的時間戳記顯示", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 agent.EnableTimestampHeader = !agent.EnableTimestampHeader;
                 string status = agent.EnableTimestampHeader ? "ON" : "OFF";
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine($"[System] Timestamp header is now {status}.");
                 Console.ResetColor();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/rmock", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/rmock", "切換是否紀錄 AI API 回應至 MockData 資料夾", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 Antigravity02.Tools.MockDataManager.IsRecordingMockData = !Antigravity02.Tools.MockDataManager.IsRecordingMockData;
                 string status = Antigravity02.Tools.MockDataManager.IsRecordingMockData ? "ON" : "OFF";
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine($"[System] Record mock data is now {status}.");
                 Console.ResetColor();
-                return true;
-            }
+            });
+        }
 
-            // 如果是 / 開頭但未知的指令，提示使用者
-            Console.WriteLine($"[System] Unknown command: {cmd}. Type /help for list of commands.");
+        public static void RegisterCommand(string name, string description, CommandHandler handler)
+        {
+            _commands[name] = new CommandDefinition(name, description, handler);
+        }
+
+        public static string[] GetRegisteredCommandNames()
+        {
+            return _commands.Keys.ToArray();
+        }
+
+        public static bool TryHandleCommand(string input, BaseAgent agent, out bool shouldExit)
+        {
+            shouldExit = false;
+            if (string.IsNullOrEmpty(input)) return false;
+
+            // 只處理以 / 開頭的指令
+            if (!input.StartsWith("/")) return false;
+
+            string cmdLine = input.Trim();
+            string[] parts = cmdLine.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+            string cmdName = parts[0];
+            string cmdArgs = parts.Length > 1 ? parts[1] : string.Empty;
+
+            if (_commands.TryGetValue(cmdName, out var def))
+            {
+                def.Handler(cmdArgs, agent, out shouldExit);
+            }
+            else
+            {
+                Console.WriteLine($"[System] Unknown command: {cmdName}. Type /help for list of commands.");
+            }
             return true;
         }
 
@@ -111,13 +142,10 @@ namespace Antigravity02
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("\n=== Available Commands ===");
-            Console.WriteLine("  /new          : Start a new conversation (clear chat history)");
-            Console.WriteLine("  /save [path]  : Save chat history to file (default: chat_history.json)");
-            Console.WriteLine("  /load [path]  : Load chat history from file (default: chat_history.json)");
-            Console.WriteLine("  /time         : Toggle timestamp header for user messages");
-            Console.WriteLine("  /rmock        : Toggle recording of AI API responses to MockData folder");
-            Console.WriteLine("  /help         : Show this help message");
-            Console.WriteLine("  /exit         : Exit the program");
+            foreach (var kvp in _commands)
+            {
+                Console.WriteLine($"  {kvp.Value.Name,-14}: {kvp.Value.Description}");
+            }
             Console.WriteLine("==========================\n");
             Console.ResetColor();
         }
@@ -165,7 +193,7 @@ namespace Antigravity02
                             Console.WriteLine($"\nAI: {text}");
                             Console.ResetColor();
                         }
-                        if (client.TryGetFunctionCallFromPart(part, out string funcName, out var args))
+                        if (client.TryGetFunctionCallFromPart(part, out string funcName, out var funcArgs))
                         {
                             Console.ForegroundColor = ConsoleColor.Blue;
                             Console.WriteLine($"  [Tool Call] {funcName ?? "?"}");
@@ -192,221 +220,6 @@ namespace Antigravity02
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("[System] === 對話紀錄結束 ===\n");
             Console.ResetColor();
-        }
-
-        /// <summary>
-        /// 計算字串的顯示寬度（全形字元算 2 寬度）
-        /// </summary>
-        private static int GetDisplayWidth(string text, int endIndex = -1)
-        {
-            if (string.IsNullOrEmpty(text)) return 0;
-            if (endIndex < 0 || endIndex > text.Length) endIndex = text.Length;
-            int width = 0;
-            for (int i = 0; i < endIndex; i++)
-            {
-                char c = text[i];
-                if ((c >= 0x4E00 && c <= 0x9FFF) ||
-                    (c >= 0x3400 && c <= 0x4DBF) ||
-                    (c >= 0x3000 && c <= 0x303F) ||
-                    (c >= 0xFF00 && c <= 0xFFEF))
-                {
-                    width += 2;
-                }
-                else
-                {
-                    width += 1;
-                }
-            }
-            return width;
-        }
-
-        /// <summary>
-        /// 提供具備自動完成與指令提示功能的控制台輸入讀取機制
-        /// </summary>
-        public static string ReadConsoleInput()
-        {
-            bool canUseInteractiveMenu = true;
-            try 
-            { 
-                if (Console.IsOutputRedirected || Console.IsInputRedirected)
-                    canUseInteractiveMenu = false;
-                _ = Console.CursorTop; // Test if we can read CursorTop
-            } 
-            catch { canUseInteractiveMenu = false; }
-
-            if (!canUseInteractiveMenu)
-            {
-                return Console.ReadLine();
-            }
-
-            bool originalCursorVisible = true;
-            try { originalCursorVisible = Console.CursorVisible; } catch { }
-
-            try
-            {
-                int requiredSpace = 8;
-                int currentTop = Console.CursorTop;
-                int maxTopForBuffer = Console.BufferHeight - 1;
-                
-                // 確保底部有足夠空間，避免繪製 Hint 時視窗捲動導致 promptTop 失效
-                if (currentTop + requiredSpace > maxTopForBuffer)
-                {
-                    int linesToPush = (currentTop + requiredSpace) - maxTopForBuffer;
-                    for (int i = 0; i < linesToPush; i++)
-                    {
-                        Console.WriteLine();
-                    }
-                    Console.SetCursorPosition(Console.CursorLeft, Console.CursorTop - linesToPush);
-                }
-
-                int promptLeft = Console.CursorLeft;
-                int promptTop = Console.CursorTop;
-
-                var input = new System.Text.StringBuilder();
-                int cursorIndex = 0;
-                string[] allCommands = { "/new", "/save", "/load", "/time", "/rmock", "/help", "/exit" };
-                int lastHintCount = 0;
-                const int maxHintDisplay = 5;
-                int maxDisplayWidth = Console.WindowWidth - promptLeft - 2; // 防止超出一行寬度
-                int previousInputWidth = 0;
-
-                void ClearHints()
-                {
-                    for (int i = 0; i < lastHintCount; i++)
-                    {
-                        int targetRow = promptTop + 1 + i;
-                        if (targetRow >= Console.BufferHeight) break;
-                        Console.SetCursorPosition(0, targetRow);
-                        Console.Write(new string(' ', Console.WindowWidth - 1));
-                    }
-                    lastHintCount = 0;
-                }
-
-                while (true)
-                {
-                    try { Console.CursorVisible = false; } catch { }
-
-                    string currentInputStr = input.ToString();
-                    int currentStrWidth = GetDisplayWidth(currentInputStr);
-                    int padSpaces = Math.Max(2, previousInputWidth - currentStrWidth + 2);
-
-                    // Draw input line
-                    Console.SetCursorPosition(promptLeft, promptTop);
-                    Console.Write(currentInputStr + new string(' ', padSpaces)); 
-                    previousInputWidth = currentStrWidth;
-
-                    string currentInput = currentInputStr;
-                    var suggestions = new System.Collections.Generic.List<string>();
-                    
-                    // 只有輸入至少 2 個字元（如 /s）才開始提示，避免輸入 / 時顯示全部指令
-                    if (currentInput.StartsWith("/") && currentInput.Length >= 2)
-                    {
-                        string cmdPart = currentInput.Split(' ')[0].ToLower();
-                        foreach (var cmd in allCommands)
-                        {
-                            if (cmd.StartsWith(cmdPart) && cmd != cmdPart)
-                            {
-                                suggestions.Add(cmd);
-                                if (suggestions.Count >= maxHintDisplay) break;
-                            }
-                        }
-                    }
-
-                    ClearHints();
-                    
-                    lastHintCount = suggestions.Count;
-                    if (suggestions.Count > 0)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Gray;
-                        for (int i = 0; i < suggestions.Count; i++)
-                        {
-                            int targetRow = promptTop + 1 + i;
-                            if (targetRow >= Console.BufferHeight) break;
-                            Console.SetCursorPosition(0, targetRow);
-                            Console.Write("  Hint: " + suggestions[i] + " (按 Tab 自動完成)");
-                        }
-                        Console.ResetColor();
-                    }
-
-                    Console.SetCursorPosition(promptLeft + GetDisplayWidth(currentInputStr, cursorIndex), promptTop);
-
-                    try { Console.CursorVisible = originalCursorVisible; } catch { }
-
-                    var keyInfo = Console.ReadKey(intercept: true);
-                    if (keyInfo.Key == ConsoleKey.Enter)
-                    {
-                        ClearHints();
-                        Console.WriteLine();
-                        break;
-                    }
-                    else if (keyInfo.Key == ConsoleKey.Backspace)
-                    {
-                        if (cursorIndex > 0)
-                        {
-                            input.Remove(cursorIndex - 1, 1);
-                            cursorIndex--;
-                        }
-                    }
-                    else if (keyInfo.Key == ConsoleKey.Delete)
-                    {
-                        if (cursorIndex < input.Length)
-                        {
-                            input.Remove(cursorIndex, 1);
-                        }
-                    }
-                    else if (keyInfo.Key == ConsoleKey.LeftArrow)
-                    {
-                        if (cursorIndex > 0) cursorIndex--;
-                    }
-                    else if (keyInfo.Key == ConsoleKey.RightArrow)
-                    {
-                        if (cursorIndex < input.Length) cursorIndex++;
-                    }
-                    else if (keyInfo.Key == ConsoleKey.Home)
-                    {
-                        cursorIndex = 0;
-                    }
-                    else if (keyInfo.Key == ConsoleKey.End)
-                    {
-                        cursorIndex = input.Length;
-                    }
-                    else if (keyInfo.Key == ConsoleKey.Tab)
-                    {
-                        if (suggestions.Count > 0)
-                        {
-                            string completion = suggestions[0];
-                            input.Clear();
-                            input.Append(completion);
-                            cursorIndex = input.Length;
-                        }
-                    }
-                    else if (keyInfo.Key == ConsoleKey.Escape)
-                    {
-                        // Escape 清除目前的輸入
-                        input.Clear();
-                        cursorIndex = 0;
-                    }
-                    else if (!char.IsControl(keyInfo.KeyChar))
-                    {
-                        if (currentStrWidth + GetDisplayWidth(keyInfo.KeyChar.ToString()) <= maxDisplayWidth)
-                        {
-                            input.Insert(cursorIndex, keyInfo.KeyChar);
-                            cursorIndex++;
-                        }
-                    }
-                }
-
-                return input.ToString().Trim();
-            }
-            catch
-            {
-                // Fallback in case of unexpected console error
-                return Console.ReadLine();
-            }
-            finally
-            {
-                try { Console.CursorVisible = originalCursorVisible; } catch { }
-            }
         }
     }
 }
