@@ -11,7 +11,7 @@ namespace Antigravity02.Tools
 
         private static string GetLogFilePath()
         {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string baseDir = AppContext.BaseDirectory;
             string logPath = Path.Combine(baseDir, LogFolderName);
 
             if (!Directory.Exists(logPath))
@@ -82,7 +82,7 @@ namespace Antigravity02.Tools
         {
             try
             {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string baseDir = AppContext.BaseDirectory;
                 string errFolderPath = Path.Combine(baseDir, "err");
 
                 if (!Directory.Exists(errFolderPath))

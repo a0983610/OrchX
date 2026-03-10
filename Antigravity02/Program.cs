@@ -12,7 +12,7 @@ namespace Antigravity02
 {
     internal class Program
     {
-        private static readonly string EnvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env");
+        private static readonly string EnvPath = Path.Combine(AppContext.BaseDirectory, ".env");
 
         static async Task Main(string[] args)
         {

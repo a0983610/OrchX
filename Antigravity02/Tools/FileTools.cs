@@ -24,7 +24,7 @@ namespace Antigravity02.Tools
         public FileTools(string baseDirectory = null)
         {
             // 規範化路徑並確保以分隔符結尾，防止 "C:\Path" 比對到 "C:\PathSecret"
-            _baseDirectory = Path.GetFullPath(baseDirectory ?? AppDomain.CurrentDomain.BaseDirectory);
+            _baseDirectory = Path.GetFullPath(baseDirectory ?? AppContext.BaseDirectory);
             if (!_baseDirectory.EndsWith(Path.DirectorySeparatorChar.ToString()))
             {
                 _baseDirectory += Path.DirectorySeparatorChar;

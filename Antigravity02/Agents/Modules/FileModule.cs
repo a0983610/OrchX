@@ -264,7 +264,7 @@ namespace Antigravity02.Agents
         private string HandleReadImage(Dictionary<string, object> args)
         {
             string imgPath = args["filePath"].ToString();
-            string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
+            string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "AI_Workspace"));
             
             string cleanedPath = imgPath;
             string prefixSlash = "AI_Workspace/";
@@ -422,7 +422,7 @@ namespace Antigravity02.Agents
         {
             try
             {
-                string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
+                string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "AI_Workspace"));
                 string knowledgeDir = Path.Combine(aiWorkspacePath, ".agent", "knowledge");
                 if (!Directory.Exists(knowledgeDir))
                 {
