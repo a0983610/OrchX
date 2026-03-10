@@ -8,7 +8,7 @@ namespace Antigravity02.AIClient
     public interface IAIClient
     {
         string ModelName { get; }
-        Task<string> GenerateContentAsync(GenerateContentRequest request);
+        Task<string> GenerateContentAsync(GenerateContentRequest request, System.Threading.CancellationToken cancellationToken = default);
         object CreateSimpleContents(string prompt);
         object[] DefineTools(params object[] functionDeclarations);
         object CreateFunctionDeclaration(string name, string description, object parameters);
@@ -21,7 +21,8 @@ namespace Antigravity02.AIClient
             System.Collections.ArrayList parts, 
             IAgentUI ui, 
             string currentModelName,
-            Func<string, Dictionary<string, object>, Task<string>> toolExecutor);
+            Func<string, Dictionary<string, object>, Task<string>> toolExecutor,
+            System.Threading.CancellationToken cancellationToken = default);
             
         bool TryGetTextFromPart(object partObj, out string text);
         bool TryGetFunctionCallFromPart(object partObj, out string functionName, out Dictionary<string, object> args);

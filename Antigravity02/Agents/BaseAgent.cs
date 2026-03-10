@@ -73,7 +73,7 @@ namespace Antigravity02.Agents
         /// <summary>
         /// 核心執行方法：接收指令並透過 UI 回饋進度
         /// </summary>
-        public async Task ExecuteAsync(string userPrompt, IAgentUI ui)
+        public async Task ExecuteAsync(string userPrompt, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             _modelSwitchHappenedInThisTurn = false;
             AppendUserPromptToHistory(userPrompt);
@@ -94,7 +94,7 @@ namespace Antigravity02.Agents
                 try
                 {
                     var request = CreateRequest();
-                    string rawJson = await Client.GenerateContentAsync(request);
+                    string rawJson = await Client.GenerateContentAsync(request, cancellationToken);
                     sw.Stop();
 
                     var data = JsonTools.Deserialize<Dictionary<string, object>>(rawJson);
@@ -110,7 +110,8 @@ namespace Antigravity02.Agents
                         parts, 
                         ui, 
                         currentModelName, 
-                        async (funcName, argsDict) => await ProcessToolCallAsync(funcName, argsDict, ui)
+                        async (funcName, argsDict) => await ProcessToolCallAsync(funcName, argsDict, ui, cancellationToken),
+                        cancellationToken
                     );
 
                     if (hasFunctionCall)
@@ -338,7 +339,7 @@ namespace Antigravity02.Agents
         /// <summary>
         /// 子類別必須實作此方法來處理特定的工具呼叫
         /// </summary>
-        protected abstract Task<string> ProcessToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui);
+        protected abstract Task<string> ProcessToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// 歷史紀錄過長時，自動進行壓縮摘要

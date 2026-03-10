@@ -2,6 +2,7 @@
 using Antigravity02.Config;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Antigravity02.Agents;
 using Antigravity02.Tools;
@@ -13,9 +14,19 @@ namespace Antigravity02
     internal class Program
     {
         private static readonly string EnvPath = Path.Combine(AppContext.BaseDirectory, ".env");
+        private static CancellationTokenSource _currentCts;
 
         static async Task Main(string[] args)
         {
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = true;
+                if (_currentCts != null && !_currentCts.IsCancellationRequested)
+                {
+                    _currentCts.Cancel();
+                }
+            };
+
             var (apiKey, smartModel, fastModel) = await InitializeConfigurationAsync();
 
             PrintStartupBanner(apiKey);
@@ -119,7 +130,14 @@ namespace Antigravity02
 
                 try
                 {
-                    await agent.ExecuteAsync(input, ui);
+                    _currentCts = new CancellationTokenSource();
+                    await agent.ExecuteAsync(input, ui, _currentCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("\n[System] 執行已手動中斷。");
+                    Console.ResetColor();
                 }
                 catch (Exception ex)
                 {
@@ -150,7 +168,14 @@ namespace Antigravity02
                 // 若非指令，則視為 Prompt 直接執行
                 try
                 {
-                    await agent.ExecuteAsync(initialInput, ui);
+                    _currentCts = new CancellationTokenSource();
+                    await agent.ExecuteAsync(initialInput, ui, _currentCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("\n[System] 啟動參數執行已手動中斷。");
+                    Console.ResetColor();
                 }
                 catch (Exception ex)
                 {

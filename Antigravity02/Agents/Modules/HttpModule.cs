@@ -48,7 +48,7 @@ namespace Antigravity02.Agents
             );
         }
 
-        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             switch (funcName)
             {

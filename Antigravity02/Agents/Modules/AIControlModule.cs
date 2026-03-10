@@ -62,7 +62,7 @@ namespace Antigravity02.Agents
             );
         }
 
-        public override Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        public override Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             if (funcName == "switch_model_mode" && _agent != null)
             {

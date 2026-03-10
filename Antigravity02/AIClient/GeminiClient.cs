@@ -30,7 +30,7 @@ namespace Antigravity02.AIClient
             _model = model;
         }
 
-        public async Task<string> GenerateContentAsync(GenerateContentRequest request)
+        public async Task<string> GenerateContentAsync(GenerateContentRequest request, System.Threading.CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(_apiKey))
             {
@@ -65,7 +65,7 @@ namespace Antigravity02.AIClient
             {
                 using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
                 {
-                    response = await _httpClient.PostAsync(url, content);
+                    response = await _httpClient.PostAsync(url, content, cancellationToken);
                     responseJson = await response.Content.ReadAsStringAsync();
                 }
 
@@ -244,7 +244,8 @@ namespace Antigravity02.AIClient
             System.Collections.ArrayList parts, 
             IAgentUI ui, 
             string currentModelName,
-            Func<string, Dictionary<string, object>, Task<string>> toolExecutor)
+            Func<string, Dictionary<string, object>, Task<string>> toolExecutor,
+            System.Threading.CancellationToken cancellationToken = default)
         {
             bool hasFunctionCall = false;
             var toolResponseParts = new List<object>();
