@@ -25,10 +25,7 @@ namespace Antigravity02.Agents
         {
             if (_hasDifferentFastModel && _agent != null)
             {
-                bool isSmart = _agent.IsSmartMode;
-                string description = isSmart
-                    ? "切換 AI 思考模式。當前為[聰明模式]。若任務簡單，建議切換至 'fast' (快速模式) 以節省資源。"
-                    : "切換 AI 思考模式。當前為[快速模式]。若任務複雜，建議切換至 'smart' (聰明模式) 以獲得更好的推理能力。";
+                string description = "切換 AI 思考模式。可傳入 'smart' (聰明模式：適合複雜推理與程式碼撰寫) 或 'fast' (快速模式：適合簡單問答與初步整理)。完成切換後系統將會回傳最新的狀態。請根據接下來任務的複雜度，決定是否需要呼叫此工具進行切換。";
 
                 yield return client.CreateFunctionDeclaration(
                     "switch_model_mode",
