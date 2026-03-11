@@ -56,18 +56,18 @@ namespace Antigravity02.Agents
             InitializeToolDeclarations();
         }
 
-        protected override async Task<string> ProcessToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        protected override async Task<string> ProcessToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             foreach (var module in _modules)
             {
-                string result = await module.TryHandleToolCallAsync(funcName, args, ui);
+                string result = await module.TryHandleToolCallAsync(funcName, args, ui, cancellationToken);
                 if (result != null)
                 {
                     return result;
                 }
             }
 
-            return "Error: Unknown tool.";
+            return $"Error: Unknown tool '{funcName}'.";
         }
     }
 }

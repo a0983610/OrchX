@@ -70,7 +70,7 @@ namespace Antigravity02.Agents
         /// </summary>
         protected abstract IEnumerable<object> BuildToolDeclarations(IAIClient client);
 
-        public abstract Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui);
+        public abstract Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// 檢查工具呼叫是否包含所有的必要參數，且不為空值

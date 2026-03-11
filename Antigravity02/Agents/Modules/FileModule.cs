@@ -198,7 +198,7 @@ namespace Antigravity02.Agents
             );
         }
 
-        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             switch (funcName)
             {
@@ -264,8 +264,10 @@ namespace Antigravity02.Agents
         private string HandleReadImage(Dictionary<string, object> args)
         {
             string imgPath = args["filePath"].ToString();
-            string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
-            
+            string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "AI_Workspace"));
+            if (!aiWorkspacePath.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                aiWorkspacePath += Path.DirectorySeparatorChar;
+
             string cleanedPath = imgPath;
             string prefixSlash = "AI_Workspace/";
             string prefixBackslash = "AI_Workspace\\";
@@ -274,19 +276,20 @@ namespace Antigravity02.Agents
             else if (cleanedPath.StartsWith(prefixBackslash, StringComparison.OrdinalIgnoreCase))
                 cleanedPath = cleanedPath.Substring(prefixBackslash.Length);
 
-            if (!File.Exists(cleanedPath))
+            // 正規化為工作區內的絕對路徑
+            string resolvedPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, cleanedPath.TrimStart('/', '\\')));
+
+            // 沙盒驗證：確保最終路徑在 AI_Workspace 內
+            if (!resolvedPath.StartsWith(aiWorkspacePath, StringComparison.OrdinalIgnoreCase))
             {
-                string workspaceImgPath = Path.GetFullPath(Path.Combine(aiWorkspacePath, cleanedPath.TrimStart('/', '\\')));
-                if (File.Exists(workspaceImgPath))
-                {
-                    cleanedPath = workspaceImgPath;
-                }
-                else
-                {
-                    return $"[Error] 找不到圖片檔案: {imgPath} (已嘗試絕對路徑與 AI_Workspace 相對路徑)";
-                }
+                return $"[Error] 超出授權存取範圍，圖片僅可讀取 AI_Workspace 內的檔案。";
             }
-            imgPath = cleanedPath;
+
+            if (!File.Exists(resolvedPath))
+            {
+                return $"[Error] 找不到圖片檔案: {imgPath}";
+            }
+            imgPath = resolvedPath;
 
             try
             {
@@ -422,7 +425,7 @@ namespace Antigravity02.Agents
         {
             try
             {
-                string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AI_Workspace"));
+                string aiWorkspacePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "AI_Workspace"));
                 string knowledgeDir = Path.Combine(aiWorkspacePath, ".agent", "knowledge");
                 if (!Directory.Exists(knowledgeDir))
                 {
@@ -486,21 +489,23 @@ namespace Antigravity02.Agents
                 };
                 string responseJson = await _fastClient.GenerateContentAsync(request);
 
-                // 簡單解析回應 (假設回傳結構標準)
+                // 簡單解析回應 (防禦式存取，避免非預期格式拋出例外)
                 var data = JsonTools.Deserialize<Dictionary<string, object>>(responseJson);
-                var candidates = data["candidates"] as System.Collections.ArrayList;
-                if (candidates != null && candidates.Count > 0)
+                if (data != null &&
+                    data.TryGetValue("candidates", out var candidatesObj) &&
+                    candidatesObj is System.Collections.ArrayList candidates &&
+                    candidates.Count > 0 &&
+                    candidates[0] is Dictionary<string, object> firstCandidate &&
+                    firstCandidate.TryGetValue("content", out var contentObj) &&
+                    contentObj is Dictionary<string, object> modelContent &&
+                    modelContent.TryGetValue("parts", out var partsObj) &&
+                    partsObj is System.Collections.ArrayList parts &&
+                    parts.Count > 0 &&
+                    parts[0] is Dictionary<string, object> textPart &&
+                    textPart.TryGetValue("text", out var textObj) &&
+                    textObj != null)
                 {
-                    var modelContent = (candidates[0] as Dictionary<string, object>)["content"] as Dictionary<string, object>;
-                    var parts = modelContent["parts"] as System.Collections.ArrayList;
-                    if (parts != null && parts.Count > 0)
-                    {
-                        var textPart = parts[0] as Dictionary<string, object>;
-                        if (textPart.ContainsKey("text"))
-                        {
-                            return $"[Fast AI Summary]: {textPart["text"]}";
-                        }
-                    }
+                    return $"[Fast AI Summary]: {textObj}";
                 }
                 return "[Fast AI Error] 無法解析摘要回應。";
             }

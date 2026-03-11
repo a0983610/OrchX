@@ -30,7 +30,7 @@ namespace Antigravity02.AIClient
             _model = model;
         }
 
-        public async Task<string> GenerateContentAsync(GenerateContentRequest request)
+        public async Task<string> GenerateContentAsync(GenerateContentRequest request, System.Threading.CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(_apiKey))
             {
@@ -58,31 +58,30 @@ namespace Antigravity02.AIClient
             int currentRetry = 0;
             int delayMs = 2000;
 
-            HttpResponseMessage response = null;
-            string responseJson = null;
-
             while (true)
             {
+                System.Net.HttpStatusCode statusCode;
+                string responseJson;
                 using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
+                using (var response = await _httpClient.PostAsync(url, content, cancellationToken))
                 {
-                    response = await _httpClient.PostAsync(url, content);
+                    statusCode = response.StatusCode;
                     responseJson = await response.Content.ReadAsStringAsync();
-                }
-
-                if (response.IsSuccessStatusCode)
-                {
-                    if (MockDataManager.IsRecordingMockData)
+                    if (response.IsSuccessStatusCode)
                     {
-                        string providerName = request.MockProviderName ?? "gemini";
-                        MockDataManager.RecordMockResponse(providerName, responseJson);
+                        if (MockDataManager.IsRecordingMockData)
+                        {
+                            string providerName = request.MockProviderName ?? "gemini";
+                            MockDataManager.RecordMockResponse(providerName, responseJson);
+                        }
+                        return responseJson;
                     }
-                    break;
                 }
 
                 // 紀錄詳細錯誤資訊
-                UsageLogger.LogApiError($"API Error: {response.StatusCode}", json, responseJson);
+                UsageLogger.LogApiError($"API Error: {statusCode}", json, responseJson);
 
-                if ((int)response.StatusCode == 429)
+                if ((int)statusCode == 429)
                 {
                     if (currentRetry < maxRetries)
                     {
@@ -103,10 +102,10 @@ namespace Antigravity02.AIClient
                         );
                     }
                 }
-                
+
                 // 處理模型不支援 Function Calling 的情況 (400 Bad Request)
-                if ((int)response.StatusCode == 400 && 
-                    (responseJson.Contains("Model does not support function calling") || 
+                if ((int)statusCode == 400 &&
+                    (responseJson.Contains("Model does not support function calling") ||
                      responseJson.Contains("models not supported") ||
                      responseJson.Contains("not support tools") ||
                      responseJson.Contains("Function calling is not enabled")))
@@ -117,10 +116,8 @@ namespace Antigravity02.AIClient
                     );
                 }
 
-                throw new Exception($"Gemini API Error: {response.StatusCode}\n{responseJson}");
+                throw new Exception($"Gemini API Error: {statusCode}\n{responseJson}");
             }
-
-            return responseJson;
         }
 
         // 輔助方法：將單純字串轉為 API 所需的 contents 格式
@@ -190,7 +187,7 @@ namespace Antigravity02.AIClient
         public async Task<string> ListModelsAsync()
         {
             var url = $"https://generativelanguage.googleapis.com/v1beta/models?key={_apiKey}";
-            var response = await _httpClient.GetAsync(url);
+            using var response = await _httpClient.GetAsync(url);
             return await response.Content.ReadAsStringAsync();
         }
 
@@ -244,13 +241,16 @@ namespace Antigravity02.AIClient
             System.Collections.ArrayList parts, 
             IAgentUI ui, 
             string currentModelName,
-            Func<string, Dictionary<string, object>, Task<string>> toolExecutor)
+            Func<string, Dictionary<string, object>, Task<string>> toolExecutor,
+            System.Threading.CancellationToken cancellationToken = default)
         {
             bool hasFunctionCall = false;
             var toolResponseParts = new List<object>();
 
-            foreach (Dictionary<string, object> part in parts)
+            foreach (var rawPart in parts)
             {
+                if (rawPart is not Dictionary<string, object> part) continue;
+
                 if (part.ContainsKey("text"))
                 {
                     ui.ReportTextResponse(part["text"].ToString(), currentModelName);
@@ -260,6 +260,7 @@ namespace Antigravity02.AIClient
                 {
                     hasFunctionCall = true;
                     var call = part["functionCall"] as Dictionary<string, object>;
+                    if (call == null) continue;
                     string funcName = call["name"].ToString();
                     var argsDict = (call.ContainsKey("args") ? call["args"] as Dictionary<string, object> : null) ?? new Dictionary<string, object>();
 

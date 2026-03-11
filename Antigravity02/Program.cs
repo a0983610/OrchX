@@ -2,6 +2,7 @@
 using Antigravity02.Config;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Antigravity02.Agents;
 using Antigravity02.Tools;
@@ -12,10 +13,20 @@ namespace Antigravity02
 {
     internal class Program
     {
-        private static readonly string EnvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".env");
+        private static readonly string EnvPath = Path.Combine(AppContext.BaseDirectory, ".env");
+        private static CancellationTokenSource _currentCts;
 
         static async Task Main(string[] args)
         {
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = true;
+                if (_currentCts != null && !_currentCts.IsCancellationRequested)
+                {
+                    _currentCts.Cancel();
+                }
+            };
+
             var (apiKey, smartModel, fastModel) = await InitializeConfigurationAsync();
 
             PrintStartupBanner(apiKey);
@@ -101,11 +112,11 @@ namespace Antigravity02
         {
             while (true)
             {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Write("\nUser: ");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.Write($"\nUser: ");
                 Console.ResetColor();
 
-                string input = Console.ReadLine();
+                string input = Antigravity02.UI.ConsoleInputHelper.ReadConsoleInput(CommandManager.GetRegisteredCommandNames());
                 if (input == null) break;
                 if (string.IsNullOrEmpty(input)) continue;
 
@@ -119,7 +130,15 @@ namespace Antigravity02
 
                 try
                 {
-                    await agent.ExecuteAsync(input, ui);
+                    _currentCts?.Dispose();
+                    _currentCts = new CancellationTokenSource();
+                    await agent.ExecuteAsync(input, ui, _currentCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("\n[System] 執行已手動中斷。");
+                    Console.ResetColor();
                 }
                 catch (Exception ex)
                 {
@@ -136,8 +155,8 @@ namespace Antigravity02
             if (args.Length == 0) return false;
 
             string initialInput = string.Join(" ", args);
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.WriteLine($"\n[Startup Command] Detected arguments: {initialInput}");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"\n[System] Detected arguments: {initialInput}");
             Console.ResetColor();
 
             bool isCommand = CommandManager.TryHandleCommand(initialInput, agent, out bool startShouldExit);
@@ -150,7 +169,15 @@ namespace Antigravity02
                 // 若非指令，則視為 Prompt 直接執行
                 try
                 {
-                    await agent.ExecuteAsync(initialInput, ui);
+                    _currentCts?.Dispose();
+                    _currentCts = new CancellationTokenSource();
+                    await agent.ExecuteAsync(initialInput, ui, _currentCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("\n[System] 啟動參數執行已手動中斷。");
+                    Console.ResetColor();
                 }
                 catch (Exception ex)
                 {
@@ -198,12 +225,18 @@ namespace Antigravity02
                     var models = data["models"] as System.Collections.ArrayList;
                     if (models != null)
                     {
-                        foreach (Dictionary<string, object> model in models)
+                        foreach (var item in models)
                         {
-                            string name = model["name"].ToString().Replace("models/", "");
-                            string displayName = model["displayName"].ToString();
-                            
-                            var methods = model["supportedGenerationMethods"] as System.Collections.ArrayList;
+                            if (item is not Dictionary<string, object> model) continue;
+                            if (!model.TryGetValue("name", out var nameObj) || nameObj == null) continue;
+                            if (!model.TryGetValue("displayName", out var displayNameObj) || displayNameObj == null) continue;
+
+                            string name = nameObj.ToString().Replace("models/", "");
+                            string displayName = displayNameObj.ToString();
+
+                            var methods = model.TryGetValue("supportedGenerationMethods", out var methodsObj)
+                                ? methodsObj as System.Collections.ArrayList
+                                : null;
                             if (methods != null && methods.Contains("generateContent"))
                             {
                                 modelDocs.AppendLine($"# {name,-25} : {displayName}");
@@ -278,7 +311,7 @@ namespace Antigravity02
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[System Error] 無法創建 .env 檔案: {ex.Message}");
+                    Console.WriteLine($"[Error] 無法創建 .env 檔案: {ex.Message}");
                 }
             }
         }

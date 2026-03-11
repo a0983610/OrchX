@@ -21,6 +21,6 @@ namespace Antigravity02.Agents
         /// </summary>
         /// <param name="ui">UI 回饋介面，若模組需要向使用者報告進度可使用</param>
         /// <returns>回傳工具執行結果，若此模組無法處理則回傳 null</returns>
-        Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui);
+        Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default);
     }
 }

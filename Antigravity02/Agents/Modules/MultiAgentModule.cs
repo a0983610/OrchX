@@ -118,12 +118,12 @@ namespace Antigravity02.Agents
             );
         }
 
-        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             switch (funcName)
             {
                 case "consult_expert":
-                    return await HandleConsultExpertAsync(funcName, args, ui);
+                    return await HandleConsultExpertAsync(funcName, args, ui, cancellationToken);
 
                 case "check_task_status":
                     return HandleCheckTaskStatus(funcName, args);
@@ -139,7 +139,7 @@ namespace Antigravity02.Agents
             }
         }
 
-        private async Task<string> HandleConsultExpertAsync(string funcName, Dictionary<string, object> args, IAgentUI ui)
+        private async Task<string> HandleConsultExpertAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             string errCE = CheckRequiredArgs(funcName, args);
             if (errCE != null) return errCE;
@@ -157,7 +157,7 @@ namespace Antigravity02.Agents
 
             if (!isAsync)
             {
-                return await ConsultExpertAsync(expertName, question, role, ui);
+                return await ConsultExpertAsync(expertName, question, role, ui, cancellationToken);
             }
             else
             {
@@ -168,7 +168,7 @@ namespace Antigravity02.Agents
                     try
                     {
                         TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Running, null);
-                        string result = await ConsultExpertAsync(expertName, question, role, safeUi);
+                        string result = await ConsultExpertAsync(expertName, question, role, safeUi, cancellationToken);
                         TaskOrchestrator.UpdateTask(taskItem.TaskId, Antigravity02.Tools.TaskStatus.Completed, result);
                     }
                     catch (Exception ex)
@@ -215,7 +215,7 @@ namespace Antigravity02.Agents
             return DismissExpert(dismissName);
         }
 
-        private async Task<string> ConsultExpertAsync(string expertName, string question, string role, IAgentUI ui)
+        private async Task<string> ConsultExpertAsync(string expertName, string question, string role, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             ExpertSession session = null;
             bool isNewSession = false;
@@ -301,7 +301,7 @@ namespace Antigravity02.Agents
                         MockProviderName = $"gemini_expert_{expertName}"
                     };
 
-                    string responseJson = await _client.GenerateContentAsync(request);
+                    string responseJson = await _client.GenerateContentAsync(request, cancellationToken);
 
                     // 解析回應
                     var data = JsonTools.Deserialize<Dictionary<string, object>>(responseJson);
@@ -342,9 +342,9 @@ namespace Antigravity02.Agents
                             ui.ReportInfo($"[Expert: {expertName}] 呼叫工具 {funcName}...");
 
                             // 執行工具呼叫
-                            string result = await _fileModule.TryHandleToolCallAsync(funcName, argsDict, ui);
-                            if (result == null) result = await _httpModule.TryHandleToolCallAsync(funcName, argsDict, ui);
-                            if (result == null) result = "Error: Unknown tool.";
+                            string result = await _fileModule.TryHandleToolCallAsync(funcName, argsDict, ui, cancellationToken);
+                            if (result == null) result = await _httpModule.TryHandleToolCallAsync(funcName, argsDict, ui, cancellationToken);
+                            if (result == null) result = $"Error: Unknown tool '{funcName}'.";
 
                             toolResponseParts.Add(_client.BuildToolResponsePart(funcName, result));
                             ui.ReportInfo($"[Expert: {expertName}] 工具返回結果長度: {result.Length}");
@@ -479,6 +479,12 @@ namespace Antigravity02.Agents
             {
                 try { return _inner != null ? _inner.PromptContinueAsync(message) : Task.FromResult(true); }
                 catch { return Task.FromResult(true); }
+            }
+            
+            public Task<int> PromptSelectionAsync(string message, params string[] options)
+            {
+                try { return _inner != null ? _inner.PromptSelectionAsync(message, options) : Task.FromResult(0); }
+                catch { return Task.FromResult(0); }
             }
         }
     }

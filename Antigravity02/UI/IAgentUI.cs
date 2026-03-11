@@ -15,5 +15,6 @@ namespace Antigravity02.UI
         void ReportError(string message);
         void ReportInfo(string message);
         Task<bool> PromptContinueAsync(string message);
+        Task<int> PromptSelectionAsync(string message, params string[] options);
     }
 }

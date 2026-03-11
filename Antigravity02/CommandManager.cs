@@ -1,52 +1,58 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Antigravity02.Agents;
 
 namespace Antigravity02
 {
+    public delegate void CommandHandler(string args, BaseAgent agent, out bool shouldExit);
+
+    public class CommandDefinition
+    {
+        public string Name { get; }
+        public string Description { get; }
+        public CommandHandler Handler { get; }
+
+        public CommandDefinition(string name, string description, CommandHandler handler)
+        {
+            Name = name;
+            Description = description;
+            Handler = handler;
+        }
+    }
+
     public static class CommandManager
     {
-        public static bool TryHandleCommand(string input, BaseAgent agent, out bool shouldExit)
+        private static readonly Dictionary<string, CommandDefinition> _commands = new Dictionary<string, CommandDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        static CommandManager()
         {
-            shouldExit = false;
-            if (string.IsNullOrEmpty(input)) return false;
-
-            // 只處理以 / 開頭的指令
-            if (!input.StartsWith("/")) return false;
-
-            string cmd = input.Trim();
-
-            if (cmd.Equals("/exit", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/exit", "結束程式", (string args, BaseAgent agent, out bool shouldExit) =>
             {
                 shouldExit = true;
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/help", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/help", "顯示此幫助訊息", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 ShowHelp();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/new", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/new", "開始新的對話 (清除對話紀錄)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 agent.ClearChatHistory();
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("[System] 對話紀錄已清除，開始新的對話。");
                 Console.ResetColor();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/save", StringComparison.OrdinalIgnoreCase) || cmd.StartsWith("/save ", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/save", "儲存對話紀錄至檔案 (預設: chat_history.json)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 string path = "chat_history.json";
-                if (cmd.Length > 6)
-                {
-                    string arg = cmd.Substring(6).Trim();
-                    if (!string.IsNullOrEmpty(arg)) path = arg;
-                }
+                if (!string.IsNullOrWhiteSpace(args)) path = args.Trim();
                 if (agent.SaveChatHistory(path))
                 {
                     Console.WriteLine($"[System] Chat history saved to {path}");
@@ -54,20 +60,16 @@ namespace Antigravity02
                 else
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"[System] Failed to save chat history to {path}");
+                    Console.WriteLine($"[Error] Failed to save chat history to {path}");
                     Console.ResetColor();
                 }
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/load", StringComparison.OrdinalIgnoreCase) || cmd.StartsWith("/load ", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/load", "從檔案載入對話紀錄 (預設: chat_history.json)", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 string path = "chat_history.json";
-                if (cmd.Length > 6)
-                {
-                    string arg = cmd.Substring(6).Trim();
-                    if (!string.IsNullOrEmpty(arg)) path = arg;
-                }
+                if (!string.IsNullOrWhiteSpace(args)) path = args.Trim();
                 if (agent.LoadChatHistory(path))
                 {
                     Console.WriteLine($"[System] Chat history loaded from {path}");
@@ -76,34 +78,70 @@ namespace Antigravity02
                 else
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"[System] Failed to load chat history from {path}");
+                    Console.WriteLine($"[Error] Failed to load chat history from {path}");
                     Console.ResetColor();
                 }
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/time", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/time", "切換使用者訊息的時間戳記顯示", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 agent.EnableTimestampHeader = !agent.EnableTimestampHeader;
                 string status = agent.EnableTimestampHeader ? "ON" : "OFF";
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine($"[System] Timestamp header is now {status}.");
                 Console.ResetColor();
-                return true;
-            }
+            });
 
-            if (cmd.Equals("/rmock", StringComparison.OrdinalIgnoreCase))
+            RegisterCommand("/rmock", "切換是否紀錄 AI API 回應至 MockData 資料夾", (string args, BaseAgent agent, out bool shouldExit) =>
             {
+                shouldExit = false;
                 Antigravity02.Tools.MockDataManager.IsRecordingMockData = !Antigravity02.Tools.MockDataManager.IsRecordingMockData;
                 string status = Antigravity02.Tools.MockDataManager.IsRecordingMockData ? "ON" : "OFF";
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine($"[System] Record mock data is now {status}.");
                 Console.ResetColor();
-                return true;
-            }
+            });
+        }
 
-            // 如果是 / 開頭但未知的指令，提示使用者
-            Console.WriteLine($"[System] Unknown command: {cmd}. Type /help for list of commands.");
+        public static void RegisterCommand(string name, string description, CommandHandler handler)
+        {
+            _commands[name] = new CommandDefinition(name, description, handler);
+        }
+
+        public static string[] GetRegisteredCommandNames()
+        {
+            return _commands.Keys.ToArray();
+        }
+
+        public static bool TryHandleCommand(string input, BaseAgent agent, out bool shouldExit)
+        {
+            shouldExit = false;
+            if (string.IsNullOrEmpty(input)) return false;
+
+            // 只處理以 / 開頭的指令
+            if (!input.StartsWith("/")) return false;
+
+            string cmdLine = input.Trim();
+            string[] parts = cmdLine.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+            string cmdName = parts[0];
+            string cmdArgs = parts.Length > 1 ? parts[1] : string.Empty;
+
+            if (_commands.TryGetValue(cmdName, out var def))
+            {
+                try
+                {
+                    def.Handler(cmdArgs, agent, out shouldExit);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[System] 指令執行時發生錯誤：{ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[System] Unknown command: {cmdName}. Type /help for list of commands.");
+            }
             return true;
         }
 
@@ -111,13 +149,10 @@ namespace Antigravity02
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine("\n=== Available Commands ===");
-            Console.WriteLine("  /new          : Start a new conversation (clear chat history)");
-            Console.WriteLine("  /save [path]  : Save chat history to file (default: chat_history.json)");
-            Console.WriteLine("  /load [path]  : Load chat history from file (default: chat_history.json)");
-            Console.WriteLine("  /time         : Toggle timestamp header for user messages");
-            Console.WriteLine("  /rmock        : Toggle recording of AI API responses to MockData folder");
-            Console.WriteLine("  /help         : Show this help message");
-            Console.WriteLine("  /exit         : Exit the program");
+            foreach (var kvp in _commands)
+            {
+                Console.WriteLine($"  {kvp.Value.Name,-14}: {kvp.Value.Description}");
+            }
             Console.WriteLine("==========================\n");
             Console.ResetColor();
         }
@@ -129,14 +164,14 @@ namespace Antigravity02
         {
             if (chatHistory == null || chatHistory.Count == 0)
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.ForegroundColor = ConsoleColor.Gray;
                 Console.WriteLine("[System] 對話紀錄為空。");
                 Console.ResetColor();
                 return;
             }
 
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
-            Console.WriteLine("\n=== 載入的對話紀錄 ===");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("\n[System] === 載入的對話紀錄 ===");
             Console.ResetColor();
 
             foreach (var entry in chatHistory)
@@ -149,7 +184,7 @@ namespace Antigravity02
                     {
                         if (client.TryGetTextFromPart(part, out string text))
                         {
-                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine($"\nUser: {text}");
                             Console.ResetColor();
                         }
@@ -165,9 +200,9 @@ namespace Antigravity02
                             Console.WriteLine($"\nAI: {text}");
                             Console.ResetColor();
                         }
-                        if (client.TryGetFunctionCallFromPart(part, out string funcName, out var args))
+                        if (client.TryGetFunctionCallFromPart(part, out string funcName, out var funcArgs))
                         {
-                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.ForegroundColor = ConsoleColor.Blue;
                             Console.WriteLine($"  [Tool Call] {funcName ?? "?"}");
                             Console.ResetColor();
                         }
@@ -181,7 +216,7 @@ namespace Antigravity02
                         {
                             content = content ?? "";
                             string summary = content.Length > 80 ? content.Substring(0, 80) + "..." : content;
-                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.ForegroundColor = ConsoleColor.Gray;
                             Console.WriteLine($"  [Tool Result] {funcName ?? "?"}: {summary}");
                             Console.ResetColor();
                         }
@@ -189,8 +224,8 @@ namespace Antigravity02
                 }
             }
 
-            Console.ForegroundColor = ConsoleColor.DarkYellow;
-            Console.WriteLine("=== 對話紀錄結束 ===\n");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("[System] === 對話紀錄結束 ===\n");
             Console.ResetColor();
         }
     }

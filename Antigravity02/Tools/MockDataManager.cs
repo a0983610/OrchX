@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -12,8 +13,8 @@ namespace Antigravity02.Tools
     public class MockDataManager
     {
         // 每個 provider 各自維護獨立的計數器與「是否已顯示首次訊息」狀態
-        private static readonly Dictionary<string, int> _mockCounters = new Dictionary<string, int>();
-        private static readonly Dictionary<string, bool> _mockMessageShown = new Dictionary<string, bool>();
+        private static readonly ConcurrentDictionary<string, int> _mockCounters = new ConcurrentDictionary<string, int>();
+        private static readonly ConcurrentDictionary<string, bool> _mockMessageShown = new ConcurrentDictionary<string, bool>();
 
         /// <summary>
         /// 是否要將真實的 API 回應記錄到 MockData 資料夾中
@@ -69,7 +70,7 @@ namespace Antigravity02.Tools
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"\n[System] 寫入 MockData 失敗: {ex.Message}");
+                Console.WriteLine($"\n[Error] 寫入 MockData 失敗: {ex.Message}");
                 Console.ResetColor();
             }
         }
@@ -83,12 +84,9 @@ namespace Antigravity02.Tools
             // 正規化為小寫，確保與既有檔案命名一致
             string normalizedName = providerName.ToLower();
 
-            // 初始化該 provider 的狀態（若尚未存在）
-            if (!_mockCounters.ContainsKey(normalizedName))
-            {
-                _mockCounters[normalizedName] = 1;
-                _mockMessageShown[normalizedName] = false;
-            }
+            // 初始化該 provider 的狀態（若尚未存在，TryAdd 確保原子性）
+            _mockCounters.TryAdd(normalizedName, 1);
+            _mockMessageShown.TryAdd(normalizedName, false);
 
             int counter = _mockCounters[normalizedName];
             string basePath = Environment.CurrentDirectory;
@@ -108,7 +106,7 @@ namespace Antigravity02.Tools
                 }
 
                 string mockFileContent = File.ReadAllText(mockFilePath);
-                _mockCounters[normalizedName] = counter + 1;
+                _mockCounters.AddOrUpdate(normalizedName, 2, (_, v) => v + 1);
                 return mockFileContent;
             }
             else
