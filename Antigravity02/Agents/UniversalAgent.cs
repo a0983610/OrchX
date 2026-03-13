@@ -20,6 +20,7 @@ namespace Antigravity02.Agents
             RegisterModule(new HttpModule());
             RegisterModule(new AIControlModule(this));
             RegisterModule(new MultiAgentModule(this));
+            RegisterModule(new TerminalModule());
             // 未來可以輕鬆加入更多模組，例如：
             // RegisterModule(new WebSearchModule());
             // RegisterModule(new DatabaseModule());
