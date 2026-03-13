@@ -212,23 +212,27 @@ namespace Antigravity02.AIClient
 
             try
             {
-                var lastMessage = requestContents[requestContents.Count - 1];
-                string serialized = JsonTools.Serialize(lastMessage);
-                var lastDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
-
-                if (lastDict != null && lastDict.ContainsKey("role") && lastDict["role"]?.ToString() == "user")
+                for (int i = requestContents.Count - 1; i >= 0; i--)
                 {
-                    var reqParts = lastDict["parts"] as System.Collections.ArrayList;
-                    if (reqParts != null && reqParts.Count > 0)
+                    var msg = requestContents[i];
+                    string serialized = JsonTools.Serialize(msg);
+                    var msgDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
+
+                    if (msgDict != null && msgDict.ContainsKey("role") && msgDict["role"]?.ToString() == "user")
                     {
-                        var textPart = reqParts[0] as Dictionary<string, object>;
-                        if (textPart != null && textPart.ContainsKey("text"))
+                        var reqParts = msgDict["parts"] as System.Collections.ArrayList;
+                        if (reqParts != null && reqParts.Count > 0)
                         {
-                            string originalText = textPart["text"]?.ToString();
-                            textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
+                            var textPart = reqParts[0] as Dictionary<string, object>;
+                            if (textPart != null && textPart.ContainsKey("text"))
+                            {
+                                string originalText = textPart["text"]?.ToString();
+                                textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
+                            }
                         }
+                        requestContents[i] = msgDict;
+                        break;
                     }
-                    requestContents[requestContents.Count - 1] = lastDict;
                 }
             }
             catch (Exception)
