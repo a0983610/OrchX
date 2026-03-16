@@ -14,7 +14,8 @@ namespace OrchX.Agents
     /// </summary>
     public class MultiAgentModule : BaseAgentModule
     {
-        private readonly IAIClient _client;
+        private readonly IAIClient _smartClient;
+        private readonly IAIClient _fastClient;
 
         /// <summary>
         /// 以 expert_name 為 Key 管理多個專家代理，支援多執行緒安全存取
@@ -23,7 +24,8 @@ namespace OrchX.Agents
 
         public MultiAgentModule(BaseAgent agent)
         {
-            _client = agent?.SmartClient;
+            _smartClient = agent?.SmartClient;
+            _fastClient = agent?.FastClient;
         }
 
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
@@ -201,7 +203,7 @@ namespace OrchX.Agents
                 {
                     return $"[System Error]: 建立新專家 '{expertName}' 時必須提供 'role' 設定（專業背景與指導原則）。";
                 }
-                agent = new ExpertAgent(expertName, role, _client);
+                agent = new ExpertAgent(expertName, role, _smartClient, _fastClient);
                 isNewAgent = true;
 
                 agent = _agents.GetOrAdd(expertName, agent);
@@ -224,23 +226,25 @@ namespace OrchX.Agents
             {
                 int currentTurn = (agent.GetChatHistory().Count / 2) + 1;
                 
+                var prefixedUi = new ExpertPrefixUI(ui, agent.Name);
+
                 if (isNewAgent)
                 {
-                    ui.ReportInfo($"\n[Expert: {agent.Name}] 建立新專家 Session");
-                    ui.ReportInfo($"[Expert: {agent.Name}] 角色: {Truncate(agent.Role, 80)}");
+                    prefixedUi.ReportInfo($"\n建立新專家 Session");
+                    prefixedUi.ReportInfo($"角色: {Truncate(agent.Role, 80)}");
                 }
                 else
                 {
-                    ui.ReportInfo($"\n[Expert: {agent.Name}] 第 {currentTurn} 輪對話");
+                    prefixedUi.ReportInfo($"\n第 {currentTurn} 輪對話");
                 }
-                ui.ReportInfo($"[Expert: {agent.Name}] 提問: {Truncate(question, 120)}");
-                ui.ReportInfo($"[Expert: {agent.Name}] 等待回應中...");
+                prefixedUi.ReportInfo($"提問: {Truncate(question, 120)}");
+                prefixedUi.ReportInfo($"等待回應中...");
 
                 int historySnapshot = agent.GetChatHistory().Count;
 
                 try
                 {
-                    await agent.ExecuteAsync(question, ui, cancellationToken);
+                    await agent.ExecuteAsync(question, prefixedUi, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -354,6 +358,28 @@ namespace OrchX.Agents
                 try { return _inner != null ? _inner.PromptSelectionAsync(message, options) : Task.FromResult(0); }
                 catch { return Task.FromResult(0); }
             }
+        }
+
+        private class ExpertPrefixUI : IAgentUI
+        {
+            private readonly IAgentUI _inner;
+            private readonly string _prefix;
+
+            public ExpertPrefixUI(IAgentUI inner, string expertName)
+            {
+                _inner = inner;
+                _prefix = $"[Expert: {expertName}]";
+            }
+
+            public void ReportThinking(int iteration, string modelName) => _inner?.ReportThinking(iteration, modelName);
+            public void ReportToolCall(string toolName, string args) => _inner?.ReportToolCall($"{_prefix} {toolName}", args);
+            public void ReportToolResult(string resultSummary) => _inner?.ReportToolResult($"{_prefix} {resultSummary}");
+            public void ReportTextResponse(string text, string modelName) => _inner?.ReportTextResponse($"{_prefix} {text}", modelName);
+            public void ReportError(string message) => _inner?.ReportError($"{_prefix} {message}");
+            public void ReportInfo(string message) => _inner?.ReportInfo($"{_prefix} {message}");
+            
+            public Task<bool> PromptContinueAsync(string message) => _inner != null ? _inner.PromptContinueAsync($"{_prefix} {message}") : Task.FromResult(true);
+            public Task<int> PromptSelectionAsync(string message, params string[] options) => _inner != null ? _inner.PromptSelectionAsync($"{_prefix} {message}", options) : Task.FromResult(0);
         }
     }
 }

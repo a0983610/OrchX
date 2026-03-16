@@ -24,6 +24,9 @@ namespace OrchX.Agents
         protected IAIClient Client => _useSmartModel ? SmartClient : FastClient;
         public bool IsSmartMode => _useSmartModel;
         
+        public virtual string AgentName => "Universal";
+        public virtual string MockProviderName => "gemini";
+        
         public void SetModelMode(string mode)
         {
             bool wasSmart = _useSmartModel;
@@ -184,7 +187,8 @@ namespace OrchX.Agents
             {
                 Contents = requestContents,
                 Tools = ToolDeclarations,
-                SystemInstruction = SystemInstruction
+                SystemInstruction = SystemInstruction,
+                MockProviderName = MockProviderName
             };
         }
 
@@ -316,7 +320,7 @@ namespace OrchX.Agents
                 }
             }
             
-            string recoveryPath = "recovery_history.json";
+            string recoveryPath = $"{AgentName}_recovery_history.json";
             if (SaveChatHistory(recoveryPath))
             {
                 ui.ReportError($"對話紀錄已自動備份至 {recoveryPath}。您可以使用 /load {recoveryPath} 來載入並重試。");
@@ -333,7 +337,7 @@ namespace OrchX.Agents
             if (!shouldContinue)
             {
                 ui.ReportError("任務已被使用者中斷。");
-                string recoveryPath = "interrupted_history.json";
+                string recoveryPath = $"{AgentName}_interrupted_history.json";
                 SaveChatHistory(recoveryPath);
                 ui.ReportError($"目前對話已存檔至 {recoveryPath}。");
                 return false;
@@ -430,7 +434,8 @@ namespace OrchX.Agents
                 Contents = new List<object>
                 {
                     FastClient.BuildMessageContent("user", prompt)
-                }
+                },
+                MockProviderName = MockProviderName
             };
 
             string rawJson = await FastClient.GenerateContentAsync(request, cancellationToken);

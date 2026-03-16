@@ -12,6 +12,9 @@ namespace OrchX.Agents
     /// </summary>
     public class ExpertAgent : BaseAgent
     {
+        public override string AgentName => $"Expert_{Name}";
+        public override string MockProviderName => Name;
+        
         public string Name { get; }
         public string Role 
         { 
@@ -21,10 +24,11 @@ namespace OrchX.Agents
 
         private readonly List<IAgentModule> _modules = new List<IAgentModule>();
 
-        public ExpertAgent(string name, string role, IAIClient client) : base(client, client)
+        public ExpertAgent(string name, string role, IAIClient smartClient, IAIClient fastClient) : base(smartClient, fastClient)
         {
             Name = name;
             Role = role;
+            EnableTimestampHeader = false;
 
             RegisterModule(new FileModule(this));
             RegisterModule(new HttpModule());
