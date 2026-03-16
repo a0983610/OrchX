@@ -247,18 +247,6 @@ namespace OrchX.Agents
                 }
             }
 
-            // 新增：讀取非同步指派出去的任務訊息
-            var activeTasks = TaskOrchestrator.GetActiveTasks().ToList();
-            if (activeTasks.Any())
-            {
-                additionalInfo += "[Active Async Tasks (consult_expert)]\n";
-                foreach (var t in activeTasks)
-                {
-                    additionalInfo += $"- TaskId: {t.TaskId}, Assignee: {t.Assignee}, Status: {t.Status}, Request: {t.Request}\n";
-                }
-                additionalInfo += "\n";
-            }
-
             return additionalInfo.TrimEnd() + "\n";
         }
 

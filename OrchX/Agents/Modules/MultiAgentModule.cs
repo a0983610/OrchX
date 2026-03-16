@@ -215,7 +215,79 @@ namespace OrchX.Agents
                 }
             }
 
-            return await agent.ConsultAsync(question, isNewAgent, ui, cancellationToken);
+            return await ConsultExpertInternalAsync(agent, question, isNewAgent, ui, cancellationToken);
+        }
+
+        private async Task<string> ConsultExpertInternalAsync(ExpertAgent agent, string question, bool isNewAgent, IAgentUI ui, System.Threading.CancellationToken cancellationToken)
+        {
+            try
+            {
+                int currentTurn = (agent.GetChatHistory().Count / 2) + 1;
+                
+                if (isNewAgent)
+                {
+                    ui.ReportInfo($"\n[Expert: {agent.Name}] 建立新專家 Session");
+                    ui.ReportInfo($"[Expert: {agent.Name}] 角色: {Truncate(agent.Role, 80)}");
+                }
+                else
+                {
+                    ui.ReportInfo($"\n[Expert: {agent.Name}] 第 {currentTurn} 輪對話");
+                }
+                ui.ReportInfo($"[Expert: {agent.Name}] 提問: {Truncate(question, 120)}");
+                ui.ReportInfo($"[Expert: {agent.Name}] 等待回應中...");
+
+                int historySnapshot = agent.GetChatHistory().Count;
+
+                try
+                {
+                    await agent.ExecuteAsync(question, ui, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    UsageLogger.LogError($"ConsultExpert({agent.Name}) Error: {ex.Message}");
+                    return $"[System Error] 諮詢專家 {agent.Name} 時發生錯誤: {ex.Message}";
+                }
+
+                // 取得最後一段 model 的回應
+                var history = agent.GetChatHistory();
+                string finalResponseText = string.Empty;
+                
+                if (history.Count > historySnapshot)
+                {
+                    for (int i = history.Count - 1; i >= historySnapshot; i--)
+                    {
+                        if (agent.SmartClient.TryGetRoleAndPartsFromMessage(history[i], out string role, out var parts) && role == "model")
+                        {
+                            foreach (var part in parts)
+                            {
+                                if (agent.SmartClient.TryGetTextFromPart(part, out string text))
+                                {
+                                    finalResponseText += text + "\n";
+                                }
+                            }
+                            break; // 找到最近一次 model 輸出即可
+                        }
+                    }
+                }
+
+                finalResponseText = finalResponseText.TrimEnd();
+
+                if (!string.IsNullOrEmpty(finalResponseText))
+                {
+                    int turnCount = agent.GetChatHistory().Count / 2;
+                    string sessionInfo = isNewAgent
+                        ? $" (新建專家 Session，角色: {Truncate(agent.Role, 50)})"
+                        : $" (第 {turnCount} 輪對話)";
+
+                    return $"[專家 {agent.Name} 回應]{sessionInfo}：\n{finalResponseText}";
+                }
+
+                return $"[System]: 專家 {agent.Name} 沒有回應或超出反覆迭代次數。";
+            }
+            catch (Exception ex)
+            {
+                return $"[System Error] 諮詢專家 {agent.Name} 時發生錯誤: {ex.Message}";
+            }
         }
 
         private string ListExperts()
@@ -231,11 +303,7 @@ namespace OrchX.Agents
 
             foreach (var kvp in _agents)
             {
-                int turns;
-                lock (kvp.Value.HistoryLock)
-                {
-                     turns = kvp.Value.History.Count / 2;
-                }
+                int turns = kvp.Value.GetChatHistory().Count / 2;
                 string rolePreview = Truncate(kvp.Value.Role, 60);
                 sb.AppendLine($"  [{kvp.Key}] 對話輪數: {turns} | 角色: {rolePreview}");
             }
@@ -252,11 +320,7 @@ namespace OrchX.Agents
 
             if (_agents.TryRemove(expertName, out var agentToRemove))
             {
-                int turns;
-                lock (agentToRemove.HistoryLock)
-                {
-                     turns = agentToRemove.History.Count / 2;
-                }
+                int turns = agentToRemove.GetChatHistory().Count / 2;
                 return $"已結束專家 {expertName} （共進行了 {turns} 輪對話）。";
             }
 

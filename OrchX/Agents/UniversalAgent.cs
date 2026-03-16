@@ -70,5 +70,23 @@ namespace OrchX.Agents
 
             return $"Error: Unknown tool '{funcName}'.";
         }
+
+        protected override string BuildSystemFixedInfo()
+        {
+            string info = base.BuildSystemFixedInfo();
+
+            var activeTasks = System.Linq.Enumerable.ToList(TaskOrchestrator.GetActiveTasks());
+            if (activeTasks.Count > 0)
+            {
+                info += "[Active Async Tasks (consult_expert)]\n";
+                foreach (var t in activeTasks)
+                {
+                    info += $"- TaskId: {t.TaskId}, Assignee: {t.Assignee}, Status: {t.Status}, Request: {t.Request}\n";
+                }
+                info += "\n";
+            }
+
+            return info;
+        }
     }
 }
