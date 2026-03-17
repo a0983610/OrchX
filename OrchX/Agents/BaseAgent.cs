@@ -182,7 +182,8 @@ namespace OrchX.Agents
                 string additionalInfo = BuildSystemFixedInfo();
                 if (!string.IsNullOrWhiteSpace(additionalInfo))
                 {
-                    Client.AppendFixedInfoToLastUserMessage(requestContents, additionalInfo);
+                    requestContents.Add(Client.BuildMessageContent("model", "請問目前的系統狀態與環境資訊為何？"));
+                    requestContents.Add(Client.BuildMessageContent("user", additionalInfo));
                 }
             }
             catch (Exception)
