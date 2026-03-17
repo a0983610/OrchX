@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 using OrchX.AIClient;
@@ -86,6 +87,16 @@ namespace OrchX.Agents
                     required = new[] { "expert_name" }
                 }
             );
+
+            yield return client.CreateFunctionDeclaration(
+                "wait_all_tasks",
+                "當有非同步專家任務仍在執行，且目前沒有其他事情可以先做時，呼叫此工具等待所有專家任務完成。",
+                new
+                {
+                    type = "object",
+                    properties = new { }
+                }
+            );
         }
 
         public override async Task<string> TryHandleToolCallAsync(string funcName, Dictionary<string, object> args, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
@@ -103,6 +114,9 @@ namespace OrchX.Agents
 
                 case "dismiss_expert":
                     return HandleDismissExpert(funcName, args);
+
+                case "wait_all_tasks":
+                    return await HandleWaitAllTasksAsync(funcName, ui, cancellationToken);
 
                 default:
                     return null;
@@ -185,6 +199,24 @@ namespace OrchX.Agents
 
             string dismissName = args.ContainsKey("expert_name") ? args["expert_name"].ToString() : "";
             return DismissExpert(dismissName);
+        }
+
+        private async Task<string> HandleWaitAllTasksAsync(string funcName, IAgentUI ui, System.Threading.CancellationToken cancellationToken)
+        {
+            var activeTasks = TaskOrchestrator.GetActiveTasks().ToList();
+            if (activeTasks.Count == 0)
+            {
+                return "[System]: 目前沒有執行中的非同步專家任務。";
+            }
+
+            ui?.ReportInfo($"[System]: 等待 {activeTasks.Count} 個專家任務完成...");
+
+            while (TaskOrchestrator.GetActiveTasks().Any())
+            {
+                await Task.Delay(1000, cancellationToken);
+            }
+
+            return "[System]: 所有非同步專家任務已完成。請呼叫 read_task_result 獲取結果。";
         }
 
         private async Task<string> ConsultExpertAsync(string expertName, string question, string role, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
