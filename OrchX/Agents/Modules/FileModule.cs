@@ -127,16 +127,17 @@ namespace OrchX.Agents
 
             yield return client.CreateFunctionDeclaration(
                 "search_content",
-                "【檔案系統：內容全局搜尋】在所有文字檔案中全文檢索特定字串。背後實作邏輯：系統會掃描並列舉 path 限制下的所有檔案，為求效能過濾掉大於 10MB 的檔案以及常見的二進位檔案格式 (例如 .exe, .png, .zip)，進以快速找出匹配 query 的文本行與詳細行號；可帶入 contextLines 同時查看上下行文脈。",
+                "【檔案系統：內容全局搜尋】在所有文字檔案中全文檢索特定字串或正則表達式。背後實作邏輯：系統會掃描並列舉 path 限制下的所有檔案，為求效能過濾掉大於 10MB 的檔案以及常見的二進位檔案格式 (例如 .exe, .png, .zip)，進以快速找出匹配 query 的文本行與詳細行號；可帶入 contextLines 同時查看上下行文脈。支援 isRegex 參數以正則表達式進行搜索。",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        query = new { type = "string", description = "要搜尋的精確關鍵字或字串" },
+                        query = new { type = "string", description = "要搜尋的精確關鍵字或正則表達式字串" },
                         path = new { type = "string", description = "搜尋範圍的子目錄，相對於 AI_Workspace (預設為空字串，代表全局搜索)" },
                         filePattern = new { type = "string", description = "限制檔案類型，例如 *.cs 或 *.log" },
-                        contextLines = new { type = "integer", description = "除了找到的那行外，額外回傳它的上下行數量 (預設為 0)" }
+                        contextLines = new { type = "integer", description = "除了找到的那行外，額外回傳它的上下行數量 (預設為 0)" },
+                        isRegex = new { type = "boolean", description = "是否將 query 視為正則表達式 (預設為 false)" }
                     },
                     required = new[] { "query" }
                 }
@@ -422,7 +423,8 @@ namespace OrchX.Agents
             string spath = args.ContainsKey("path") ? args["path"].ToString() : "";
             string sfPattern = args.ContainsKey("filePattern") ? args["filePattern"].ToString() : "";
             int ctxLines = args.ContainsKey("contextLines") ? Convert.ToInt32(args["contextLines"]) : 0;
-            return _fileTools.SearchContent(sq, spath, sfPattern, ctxLines);
+            bool isRegex = args.ContainsKey("isRegex") && Convert.ToBoolean(args["isRegex"]);
+            return _fileTools.SearchContent(sq, spath, sfPattern, ctxLines, isRegex);
         }
 
         private string UpdateKnowledgeIndex(string title, string description)

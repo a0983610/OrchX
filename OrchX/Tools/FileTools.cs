@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.IO.Compression;
 using System.Xml;
+using System.Text.RegularExpressions;
 
 namespace OrchX.Tools
 {
@@ -526,7 +527,7 @@ namespace OrchX.Tools
         /// <summary>
         /// 全局搜尋包含特定關鍵字的檔案
         /// </summary>
-        public string SearchContent(string query, string subPath = "", string filePattern = "", int contextLines = 0)
+        public string SearchContent(string query, string subPath = "", string filePattern = "", int contextLines = 0, bool isRegex = false)
         {
             try
             {
@@ -575,6 +576,19 @@ namespace OrchX.Tools
                 // 優先考慮最近修改的檔案 (Descending order)
                 validFiles.Sort((a, b) => b.Item2.CompareTo(a.Item2));
 
+                Regex regex = null;
+                if (isRegex)
+                {
+                    try
+                    {
+                        regex = new Regex(query, RegexOptions.IgnoreCase);
+                    }
+                    catch (Exception ex)
+                    {
+                        return $"錯誤：無效的正則表達式 '{query}'。{ex.Message}";
+                    }
+                }
+
                 StringBuilder sb = new StringBuilder();
                 int matchCount = 0;
                 bool limitReached = false;
@@ -591,7 +605,9 @@ namespace OrchX.Tools
 
                         for (int i = 0; i < lines.Length; i++)
                         {
-                            if (lines[i].IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                            bool isMatch = isRegex ? regex.IsMatch(lines[i]) : lines[i].IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+
+                            if (isMatch)
                             {
                                 if (matchCount == 0) sb.AppendLine($"搜尋結果 (關鍵字: {query})：\n");
 
