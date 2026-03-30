@@ -15,7 +15,7 @@ namespace OrchX.Agents
         {
             yield return client.CreateFunctionDeclaration(
                 "run_terminal_command",
-                "【系統：執行終端指令】由於安全考量，僅允許執行白名單內的開發指令。白名單：python, pip, node, npm, npx, dir, echo, type, git status/log。禁止使用重定向(>, <)、管線(|)、連鎖執行(&)與環境變數(%)。嚴禁路徑穿越(..)。特殊限制：npm install 需帶 --ignore-scripts；禁止 npm run, pip install, python -m pip install；git log 禁用 -p/--all；dir 與 type 僅限當前目錄。",
+                "【系統：執行終端指令】僅允許白名單指令(python, pip, node, npm, npx, dir, echo, type, git status/log)。禁用重新導向(><)、管線(|)、連鎖(&)、變數(%)及路徑穿越(..)。限制：npm install 須帶 --ignore-scripts；禁 npm run/pip install/python -m pip install；git log 禁 -p/--all；dir/type 限當前目錄。",
                 new
                 {
                     type = "object",

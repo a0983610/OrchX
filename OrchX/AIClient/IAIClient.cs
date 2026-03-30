@@ -16,7 +16,6 @@ namespace OrchX.AIClient
         string ExtractTextFromResponseData(Dictionary<string, object> data);
         
         (int promptTokens, int candidateTokens, int totalTokens) ExtractTokenUsage(Dictionary<string, object> data);
-        void AppendFixedInfoToLastUserMessage(List<object> requestContents, string additionalInfo);
         Task<(bool hasFunctionCall, List<object> toolResponseParts)> ProcessModelPartsAsync(
             System.Collections.ArrayList parts, 
             IAgentUI ui, 

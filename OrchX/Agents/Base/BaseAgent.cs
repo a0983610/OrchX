@@ -63,7 +63,7 @@ namespace OrchX.Agents
         public bool EnableTimestampHeader { get; set; } = true;
         
         // 歷史紀錄壓縮 Token 閾值
-        public int TokenThresholdForCompression { get; set; } = 800000;
+        public int TokenThresholdForCompression { get; set; } = 100000;
 
         private bool _hasWorkspaceExceededLimit = false;
 
@@ -182,7 +182,8 @@ namespace OrchX.Agents
                 string additionalInfo = BuildSystemFixedInfo();
                 if (!string.IsNullOrWhiteSpace(additionalInfo))
                 {
-                    Client.AppendFixedInfoToLastUserMessage(requestContents, additionalInfo);
+                    requestContents.Add(Client.BuildMessageContent("model", "請問目前的系統狀態與環境資訊為何？"));
+                    requestContents.Add(Client.BuildMessageContent("user", additionalInfo));
                 }
             }
             catch (Exception)
@@ -309,15 +310,19 @@ namespace OrchX.Agents
         {
             if (toolResponseParts == null || toolResponseParts.Count == 0) return;
 
-            ChatHistory.Add(Client.BuildFunctionMessageContent(toolResponseParts));
-
             if (_modelSwitchHappenedInThisTurn && toolResponseParts.Count == 1)
             {
-                if (ChatHistory.Count >= 2)
+                // 模型切換時，為了讓新模型擁有乾淨的上下文，
+                // 移除剛才在 ExecuteAsync 中加入的 Tool Call Request，且不加入本次的 Tool Response。
+                if (ChatHistory.Count >= 1)
                 {
-                    ChatHistory.RemoveRange(ChatHistory.Count - 2, 2);
+                    ChatHistory.RemoveAt(ChatHistory.Count - 1);
                 }
                 _modelSwitchHappenedInThisTurn = false;
+            }
+            else
+            {
+                ChatHistory.Add(Client.BuildFunctionMessageContent(toolResponseParts));
             }
         }
 
@@ -380,7 +385,11 @@ namespace OrchX.Agents
             if (ChatHistory.Count < 6) return;
 
             int actualSplitIndex = FindCompressSplitIndex();
-            if (actualSplitIndex <= 0) return;
+            if (actualSplitIndex <= 0)
+            {
+                UsageLogger.LogError("CompressHistory: 找不到適合分割點，跳過壓縮");
+                return;
+            }
 
             ui.ReportThinking(0, "Fast Model (正在壓縮與清理對話歷史紀錄...)");
 

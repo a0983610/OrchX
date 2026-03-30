@@ -35,7 +35,7 @@ namespace OrchX
             var smartClient = new GeminiClient(apiKey, smartModel);
             var fastClient = new GeminiClient(apiKey, fastModel);
 
-            var agent = new UniversalAgent(
+            var agent = new ManagerAgent(
                 smartClient,
                 fastClient,
                 OrchX.Config.AgentConfig.GetSystemInstruction()
@@ -108,7 +108,7 @@ namespace OrchX
             Console.ResetColor();
         }
 
-        static async Task RunInteractiveLoopAsync(UniversalAgent agent, ConsoleUI ui)
+        static async Task RunInteractiveLoopAsync(ManagerAgent agent, ConsoleUI ui)
         {
             while (true)
             {
@@ -150,7 +150,7 @@ namespace OrchX
             }
         }
 
-        static async Task<bool> ProcessStartupArgsAsync(string[] args, UniversalAgent agent, ConsoleUI ui)
+        static async Task<bool> ProcessStartupArgsAsync(string[] args, ManagerAgent agent, ConsoleUI ui)
         {
             if (args.Length == 0) return false;
 
@@ -190,7 +190,7 @@ namespace OrchX
             return false;
         }
 
-        static void BackupChatHistoryOnError(UniversalAgent agent, ConsoleUI ui)
+        static void BackupChatHistoryOnError(ManagerAgent agent, ConsoleUI ui)
         {
             if (agent.SaveChatHistory("system_error_backup.json"))
             {

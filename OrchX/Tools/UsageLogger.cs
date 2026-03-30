@@ -34,9 +34,10 @@ namespace OrchX.Tools
                                   $"Duration: {durationMs}ms | " +
                                   $"Tokens: [Prompt: {promptTokens}, Candidate: {candidateTokens}, Total: {totalTokens}]" +
                                   Environment.NewLine;
+                string path = GetLogFilePath();
                 lock (_logLock)
                 {
-                    File.AppendAllText(GetLogFilePath(), logEntry);
+                    File.AppendAllText(path, logEntry);
                 }            }
             catch (Exception ex)
             {
@@ -51,9 +52,10 @@ namespace OrchX.Tools
                 string text = resultSummary ?? "(null)";
                 string summary = text.Length > 200 ? text.Substring(0, 200) + "..." : text;
                 string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ACTION] {actionName} | Result: {summary}{Environment.NewLine}";
+                string path = GetLogFilePath();
                 lock (_logLock)
                 {
-                    File.AppendAllText(GetLogFilePath(), logEntry);
+                    File.AppendAllText(path, logEntry);
                 }
             }
             catch (Exception ex)
@@ -67,9 +69,10 @@ namespace OrchX.Tools
             try
             {
                 string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message}{Environment.NewLine}";
+                string path = GetLogFilePath();
                 lock (_logLock)
                 {
-                    File.AppendAllText(GetLogFilePath(), logEntry);
+                    File.AppendAllText(path, logEntry);
                 }
             }
             catch (Exception ex)
@@ -99,13 +102,14 @@ namespace OrchX.Tools
                                        $"--- API REQUEST ---{Environment.NewLine}{requestBody}{Environment.NewLine}{Environment.NewLine}" +
                                        $"--- API RESPONSE ---{Environment.NewLine}{responseBody}";
 
+                // 在主 log 紀錄簡短訊息並附上編號
+                string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message} | Details in err/{errFileName}{Environment.NewLine}";
+                string path = GetLogFilePath();
+
                 lock (_logLock)
                 {
                     File.WriteAllText(errFilePath, detailContent);
-
-                    // 在主 log 紀錄簡短訊息並附上編號
-                    string logEntry = $"[{DateTime.Now:HH:mm:ss}] [ERROR] {message} | Details in err/{errFileName}{Environment.NewLine}";
-                    File.AppendAllText(GetLogFilePath(), logEntry);
+                    File.AppendAllText(path, logEntry);
                 }
             }
             catch (Exception ex)

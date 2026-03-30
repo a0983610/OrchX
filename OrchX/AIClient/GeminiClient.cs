@@ -206,41 +206,6 @@ namespace OrchX.AIClient
             return (promptTokens, candidateTokens, totalTokens);
         }
 
-        public void AppendFixedInfoToLastUserMessage(List<object> requestContents, string additionalInfo)
-        {
-            if (string.IsNullOrWhiteSpace(additionalInfo) || requestContents.Count == 0) return;
-
-            try
-            {
-                for (int i = requestContents.Count - 1; i >= 0; i--)
-                {
-                    var msg = requestContents[i];
-                    string serialized = JsonTools.Serialize(msg);
-                    var msgDict = JsonTools.Deserialize<Dictionary<string, object>>(serialized);
-
-                    if (msgDict != null && msgDict.ContainsKey("role") && msgDict["role"]?.ToString() == "user")
-                    {
-                        var reqParts = msgDict["parts"] as System.Collections.ArrayList;
-                        if (reqParts != null && reqParts.Count > 0)
-                        {
-                            var textPart = reqParts[0] as Dictionary<string, object>;
-                            if (textPart != null && textPart.ContainsKey("text"))
-                            {
-                                string originalText = textPart["text"]?.ToString();
-                                textPart["text"] = originalText + $"\n\n[System Fixed Info]\n{additionalInfo}";
-                            }
-                        }
-                        requestContents[i] = msgDict;
-                        break;
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // 忽略錯誤，避免阻斷主要執行流程
-            }
-        }
-
         public async Task<(bool hasFunctionCall, List<object> toolResponseParts)> ProcessModelPartsAsync(
             System.Collections.ArrayList parts, 
             IAgentUI ui, 
@@ -265,7 +230,12 @@ namespace OrchX.AIClient
                     hasFunctionCall = true;
                     var call = part["functionCall"] as Dictionary<string, object>;
                     if (call == null) continue;
-                    string funcName = call["name"].ToString();
+                    string funcName = call["name"]?.ToString() ?? string.Empty;
+                    if (string.IsNullOrEmpty(funcName))
+                    {
+                        UsageLogger.LogError("ProcessModelPartsAsync: functionCall 缺少有效的 name，已跳過。");
+                        continue;
+                    }
                     var argsDict = (call.ContainsKey("args") ? call["args"] as Dictionary<string, object> : null) ?? new Dictionary<string, object>();
 
                     ui.ReportToolCall(funcName, JsonTools.Serialize(argsDict));

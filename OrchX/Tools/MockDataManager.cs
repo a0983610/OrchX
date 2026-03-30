@@ -15,6 +15,7 @@ namespace OrchX.Tools
         // 每個 provider 各自維護獨立的計數器與「是否已顯示首次訊息」狀態
         private static readonly ConcurrentDictionary<string, int> _mockCounters = new ConcurrentDictionary<string, int>();
         private static readonly ConcurrentDictionary<string, bool> _mockMessageShown = new ConcurrentDictionary<string, bool>();
+        private static readonly object _syncLock = new object();
 
         /// <summary>
         /// 是否要將真實的 API 回應記錄到 MockData 資料夾中
@@ -81,48 +82,51 @@ namespace OrchX.Tools
         /// </summary>
         public static string GetMockResponse(string providerName = "gemini")
         {
-            // 正規化為小寫，確保與既有檔案命名一致
-            string normalizedName = providerName.ToLower();
-
-            // 初始化該 provider 的狀態（若尚未存在，TryAdd 確保原子性）
-            _mockCounters.TryAdd(normalizedName, 1);
-            _mockMessageShown.TryAdd(normalizedName, false);
-
-            int counter = _mockCounters[normalizedName];
-            string basePath = Environment.CurrentDirectory;
-            string mockFileName = $"{normalizedName}_mock_response_{counter:D4}.json";
-            string mockFilePath = Path.Combine(basePath, "MockData", mockFileName);
-
-            if (File.Exists(mockFilePath))
+            lock (_syncLock)
             {
-                if (!_mockMessageShown[normalizedName])
+                // 正規化為小寫，確保與既有檔案命名一致
+                string normalizedName = providerName.ToLower();
+
+                // 初始化該 provider 的狀態
+                _mockCounters.TryAdd(normalizedName, 1);
+                _mockMessageShown.TryAdd(normalizedName, false);
+
+                int counter = _mockCounters[normalizedName];
+                string basePath = Environment.CurrentDirectory;
+                string mockFileName = $"{normalizedName}_mock_response_{counter:D4}.json";
+                string mockFilePath = Path.Combine(basePath, "MockData", mockFileName);
+
+                if (File.Exists(mockFilePath))
                 {
-                    Console.WriteLine($"\n[{providerName}Client] 尚未設定 API KEY，讀取模擬回應資料 ({mockFilePath})...");
-                    _mockMessageShown[normalizedName] = true;
+                    if (!_mockMessageShown[normalizedName])
+                    {
+                        Console.WriteLine($"\n[{providerName}Client] 尚未設定 API KEY，讀取模擬回應資料 ({mockFilePath})...");
+                        _mockMessageShown[normalizedName] = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"\n[{providerName}Client] 讀取模擬回應資料 ({mockFilePath})...");
+                    }
+
+                    string mockFileContent = File.ReadAllText(mockFilePath);
+                    _mockCounters[normalizedName] = counter + 1;
+                    return mockFileContent;
                 }
                 else
                 {
-                    Console.WriteLine($"\n[{providerName}Client] 讀取模擬回應資料 ({mockFilePath})...");
-                }
+                    Console.WriteLine($"\n[System] 找不到模擬回應檔案，正在自動建立空白檔案: {mockFilePath}");
+                    
+                    var directory = Path.GetDirectoryName(mockFilePath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
 
-                string mockFileContent = File.ReadAllText(mockFilePath);
-                _mockCounters.AddOrUpdate(normalizedName, 2, (_, v) => v + 1);
-                return mockFileContent;
-            }
-            else
-            {
-                Console.WriteLine($"\n[System] 找不到模擬回應檔案，正在自動建立空白檔案: {mockFilePath}");
-                
-                var directory = Path.GetDirectoryName(mockFilePath);
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
+                    string defaultMockContent = GetDefaultMockContent(normalizedName);
+                    File.WriteAllText(mockFilePath, defaultMockContent, Encoding.UTF8);
+                    
+                    throw new Exception($"尚未設定 API KEY，且找不到模擬回應檔案。\n系統已自動於路徑建立空白檔案：{mockFilePath}\n請在該檔案中的 'text' 欄位(或對應欄位)填入您想測試的回應內容後再試一次。");
                 }
-
-                string defaultMockContent = GetDefaultMockContent(normalizedName);
-                File.WriteAllText(mockFilePath, defaultMockContent, Encoding.UTF8);
-                
-                throw new Exception($"尚未設定 API KEY，且找不到模擬回應檔案。\n系統已自動於路徑建立空白檔案：{mockFilePath}\n請在該檔案中的 'text' 欄位(或對應欄位)填入您想測試的回應內容後再試一次。");
             }
         }
 

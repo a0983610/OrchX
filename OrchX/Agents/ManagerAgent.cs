@@ -9,11 +9,11 @@ namespace OrchX.Agents
     /// <summary>
     /// 萬能 Agent：整合多個功能模組，具備全方位的工具箱
     /// </summary>
-    public class UniversalAgent : BaseAgent
+    public class ManagerAgent : BaseAgent
     {
         private readonly List<IAgentModule> _modules = new List<IAgentModule>();
 
-        public UniversalAgent(IAIClient smartClient, IAIClient fastClient, string systemInstruction = null) : base(smartClient, fastClient)
+        public ManagerAgent(IAIClient smartClient, IAIClient fastClient, string systemInstruction = null) : base(smartClient, fastClient)
         {
             // 在此註冊所有模組
             RegisterModule(new FileModule(this));
