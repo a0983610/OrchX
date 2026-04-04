@@ -9,19 +9,12 @@ using OrchX.UI;
 
 namespace OrchX.AIClient
 {
-    public class GenerateContentRequest
-    {
-        public object Contents { get; set; }
-        public List<object> Tools { get; set; }
-        public string SystemInstruction { get; set; }
-        public string MockProviderName { get; set; }
-    }
-
     public class GeminiClient : IAIClient
     {
         private readonly string _apiKey;
         private readonly string _model;
         public string ModelName => _model;
+        public string ProviderName => "gemini";
         private static readonly HttpClient _httpClient = new HttpClient();
 
         public GeminiClient(string apiKey, string model = "gemini-2.5-flash")

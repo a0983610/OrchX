@@ -27,21 +27,33 @@ namespace OrchX
                 }
             };
 
-            var (apiKey, smartModel, fastModel) = await InitializeConfigurationAsync();
+            var (apiKey, smartModel, fastModel, ollamaUrl, ollamaModel) = await InitializeConfigurationAsync();
 
-            PrintStartupBanner(apiKey);
+            PrintStartupBanner(apiKey, ollamaUrl);
 
-            // 無論有沒有 API Key 都會進入執行範圍，遇到需要發 API 時可由底層讀取 MockData
-            var smartClient = new GeminiClient(apiKey, smartModel);
-            var fastClient = new GeminiClient(apiKey, fastModel);
+            IAIClient smartClient;
+            IAIClient fastClient;
+
+            if (string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(ollamaUrl))
+            {
+                smartClient = new OllamaClient(ollamaUrl, ollamaModel);
+                fastClient = new OllamaClient(ollamaUrl, ollamaModel);
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"[Config] Using Ollama: {ollamaUrl} (Model: {ollamaModel})");
+                Console.ResetColor();
+            }
+            else
+            {
+                smartClient = new GeminiClient(apiKey, smartModel);
+                fastClient = new GeminiClient(apiKey, fastModel);
+                PrintModelConfig(smartModel, fastModel);
+            }
 
             var agent = new ManagerAgent(
                 smartClient,
                 fastClient,
                 OrchX.Config.AgentConfig.GetSystemInstruction()
             );
-
-            PrintModelConfig(smartModel, fastModel);
 
             var ui = new ConsoleUI();
 
@@ -54,7 +66,7 @@ namespace OrchX
             if (!Console.IsInputRedirected) { Console.ReadKey(); }
         }
 
-        static async Task<(string apiKey, string smartModel, string fastModel)> InitializeConfigurationAsync()
+        static async Task<(string apiKey, string smartModel, string fastModel, string ollamaUrl, string ollamaModel)> InitializeConfigurationAsync()
         {
             // 確保環境變量檔案存在
             EnsureEnvFileExists();
@@ -63,12 +75,16 @@ namespace OrchX
             string apiKey = GetApiKey();
             string smartModelRaw = GetConfig("GEMINI_SMART_MODEL") ?? GetConfig("GEMINI_MODEL");
             string fastModelRaw = GetConfig("GEMINI_FAST_MODEL") ?? GetConfig("GEMINI_MODEL");
+            string ollamaUrlRaw = GetConfig("OLLAMA_URL");
+            string ollamaModelRaw = GetConfig("OLLAMA_MODEL");
             
             bool noModelConfigured = string.IsNullOrEmpty(smartModelRaw) && string.IsNullOrEmpty(fastModelRaw);
 
             // 使用者指定預設為 gemini-2.5-flash
             string smartModel = smartModelRaw ?? "gemini-2.5-flash";
             string fastModel = fastModelRaw ?? "gemini-2.5-flash";
+            string ollamaUrl = ollamaUrlRaw;
+            string ollamaModel = ollamaModelRaw ?? "gemma4";
             // ----------------
 
             if (noModelConfigured && !string.IsNullOrEmpty(apiKey))
@@ -77,18 +93,27 @@ namespace OrchX
                 await UpdateEnvWithModelListAsync(apiKey);
             }
 
-            return (apiKey, smartModel, fastModel);
+            return (apiKey, smartModel, fastModel, ollamaUrl, ollamaModel);
         }
 
-        static void PrintStartupBanner(string apiKey)
+        static void PrintStartupBanner(string apiKey, string ollamaUrl)
         {
             Console.WriteLine("=== AI Automation Assistant ===");
 
             if (string.IsNullOrEmpty(apiKey))
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("\n[Warning] API Key is empty. Application will run in Mock API Mode.");
-                Console.ResetColor();
+                if (!string.IsNullOrEmpty(ollamaUrl))
+                {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine("\n[Info] API Key is empty. Application will run using local Ollama instance.");
+                    Console.ResetColor();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("\n[Warning] API Key is empty. Application will run in Mock API Mode.");
+                    Console.ResetColor();
+                }
             }
         }
 
@@ -302,7 +327,10 @@ namespace OrchX
                                  "# 也可以只設 GEMINI_MODEL 讓所有模組共用\n" +
                                  "GEMINI_MODEL=\n" +
                                  "GEMINI_SMART_MODEL=\n" +
-                                 "GEMINI_FAST_MODEL=\n";
+                                 "GEMINI_FAST_MODEL=\n\n" +
+                                 "# Ollama 網址 (選填，預設為 http://localhost:11434)\n" +
+                                 "OLLAMA_URL=\n" +
+                                 "OLLAMA_MODEL=gemma4\n";
                 
                 try
                 {

@@ -18,6 +18,7 @@ namespace OrchX.AIClient
         private readonly string _endpoint;
         private readonly string _model;
         public string ModelName => _model;
+        public string ProviderName => "ollama";
         private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
 
         public OllamaClient(string endpoint = "http://localhost:11434", string model = "gemma4")
@@ -30,101 +31,18 @@ namespace OrchX.AIClient
         {
             var url = $"{_endpoint}/api/chat";
 
-            var messages = new List<object>();
-
-            // 加入 System Instruction
-            if (!string.IsNullOrEmpty(request.SystemInstruction))
-            {
-                messages.Add(new { role = "system", content = request.SystemInstruction });
-            }
-
-            // 轉換請求內容為 Ollama 的格式
-            if (request.Contents is System.Collections.IEnumerable enumerableContents)
-            {
-                foreach (var item in enumerableContents)
-                {
-                    if (TryGetRoleAndPartsFromMessage(item, out string role, out IEnumerable<object> parts))
-                    {
-                        var contentBuilder = new StringBuilder();
-                        var toolCalls = new List<object>();
-                        var images = new List<string>();
-
-                        foreach(var part in parts)
-                        {
-                            if (TryGetTextFromPart(part, out string text))
-                            {
-                                contentBuilder.Append(text);
-                            }
-                            
-                            if (TryGetFunctionCallFromPart(part, out string funcName, out Dictionary<string, object> args))
-                            {
-                                toolCalls.Add(new
-                                {
-                                    type = "function",
-                                    function = new
-                                    {
-                                        name = funcName,
-                                        arguments = args
-                                    }
-                                });
-                            }
-                            
-                            if (TryGetFunctionResponseFromPart(part, out string fnName, out string fnContent))
-                            {
-                                // Ollama wants tool responses as separate messages with role="tool" and content.
-                                messages.Add(new { role = "tool", content = fnContent });
-                            }
-
-                            if (part is Dictionary<string, object> dictPart)
-                            {
-                                if (dictPart.ContainsKey("inlineData") && dictPart["inlineData"] is Dictionary<string, object> inlineData && inlineData.ContainsKey("data"))
-                                {
-                                    images.Add(inlineData["data"].ToString());
-                                }
-                            }
-                            else if (part != null)
-                            {
-                                // 若非 Dictionary，嘗試透過序列化來檢查是否含有圖片資料 (如匿名型別)
-                                string partJson = JsonTools.Serialize(part);
-                                var partDict = JsonTools.Deserialize<Dictionary<string, object>>(partJson);
-                                if (partDict != null && partDict.ContainsKey("inlineData") && partDict["inlineData"] is Dictionary<string, object> inln && inln.ContainsKey("data"))
-                                {
-                                    images.Add(inln["data"].ToString());
-                                }
-                            }
-                        }
-
-                        if (role == "user" || role == "model")
-                        {
-                            string ollamaRole = role == "model" ? "assistant" : "user";
-                            var msg = new Dictionary<string, object>();
-                            msg["role"] = ollamaRole;
-                            msg["content"] = contentBuilder.ToString();
-
-                            if (toolCalls.Count > 0)
-                            {
-                                msg["tool_calls"] = toolCalls;
-                            }
-                            if (images.Count > 0)
-                            {
-                                msg["images"] = images;
-                            }
-                            messages.Add(msg);
-                        }
-                    }
-                }
-            }
+            var unifiedRequest = AIRequestConverter.ToUnifiedRequest(request, _model);
 
             var requestBody = new Dictionary<string, object>
             {
-                { "model", _model },
-                { "messages", messages },
-                { "stream", false }
+                { "model", unifiedRequest.Model },
+                { "messages", unifiedRequest.Messages },
+                { "stream", unifiedRequest.Stream ?? false }
             };
 
-            if (request.Tools != null && request.Tools.Count > 0)
+            if (unifiedRequest.Tools != null && unifiedRequest.Tools.Count > 0)
             {
-                requestBody["tools"] = request.Tools;
+                requestBody["tools"] = unifiedRequest.Tools;
             }
 
             var json = JsonTools.Serialize(requestBody);

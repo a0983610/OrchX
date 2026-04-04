@@ -24,8 +24,8 @@ namespace OrchX.Agents
         protected IAIClient Client => _useSmartModel ? SmartClient : FastClient;
         public bool IsSmartMode => _useSmartModel;
         
-        public virtual string AgentName => "Universal";
-        public virtual string MockProviderName => "gemini";
+        public virtual string AgentName { get; set; } = "Manager";
+        public virtual string MockProviderName => Client?.ProviderName ?? "gemini";
         
         public void SetModelMode(string mode)
         {

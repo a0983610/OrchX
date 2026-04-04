@@ -7,7 +7,7 @@ using OrchX.UI;
 namespace OrchX.Agents
 {
     /// <summary>
-    /// 萬能 Agent：整合多個功能模組，具備全方位的工具箱
+    /// 整合多個功能模組，具備全方位的工具箱
     /// </summary>
     public class ManagerAgent : BaseAgent
     {

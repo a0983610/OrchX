@@ -8,6 +8,7 @@ namespace OrchX.AIClient
     public interface IAIClient
     {
         string ModelName { get; }
+        string ProviderName { get; }
         Task<string> GenerateContentAsync(GenerateContentRequest request, System.Threading.CancellationToken cancellationToken = default);
         object CreateSimpleContents(string prompt);
         object[] DefineTools(params object[] functionDeclarations);
