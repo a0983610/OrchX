@@ -114,46 +114,16 @@ namespace OrchX.Tools
                 }
                 else
                 {
-                    Console.WriteLine($"\n[System] 找不到模擬回應檔案，正在自動建立空白檔案: {mockFilePath}");
-                    
                     var directory = Path.GetDirectoryName(mockFilePath);
                     if (!Directory.Exists(directory))
                     {
                         Directory.CreateDirectory(directory);
                     }
 
-                    string defaultMockContent = GetDefaultMockContent(normalizedName);
-                    File.WriteAllText(mockFilePath, defaultMockContent, Encoding.UTF8);
-                    
-                    throw new Exception($"尚未設定 API KEY，且找不到模擬回應檔案。\n系統已自動於路徑建立空白檔案：{mockFilePath}\n請在該檔案中的 'text' 欄位(或對應欄位)填入您想測試的回應內容後再試一次。");
+                    throw new Exception($"尚未設定 API KEY，且找不到模擬回應檔案 ({mockFilePath})。\n請在該路徑建立一個 JSON 檔案，並填入您想測試的回應內容後再試一次。");
                 }
             }
         }
 
-        private static string GetDefaultMockContent(string providerName)
-        {
-            if (providerName == "gemini")
-            {
-                return @"{
-  ""candidates"": [
-    {
-      ""content"": {
-        ""parts"": [
-          {
-            ""text"": ""請在這裡填寫你想測試的回應內容。\n支援多行與 Markdown 格式。\n例如：\n\n這是一個測試回應。""
-          }
-        ],
-        ""role"": ""model""
-      },
-      ""finishReason"": ""STOP""
-    }
-  ]
-}";
-            }
-            
-            return @"{
-  ""mock_response"": ""請在這裡填寫你想測試的回應內容。""
-}";
-        }
     }
 }
