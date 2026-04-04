@@ -15,7 +15,7 @@ namespace OrchX.Agents
         {
             yield return client.CreateFunctionDeclaration(
                 "run_terminal_command",
-                "【系統：執行終端指令】僅允許白名單指令(python, pip, node, npm, npx, dir, echo, type, git status/log)。禁用重新導向(><)、管線(|)、連鎖(&)、變數(%)及路徑穿越(..)。限制：npm install 須帶 --ignore-scripts；禁 npm run/pip install/python -m pip install；git log 禁 -p/--all；dir/type 限當前目錄。",
+                "【系統：執行終端指令】僅允許白名單指令(python, pip, node, npm, npx, dir, echo, type, move, del, ren, mkdir, rmdir, git status/log)。禁用重新導向(><)、管線(|)、連鎖(&)、變數(%)及路徑穿越(..)。限制：npm install 須帶 --ignore-scripts；禁 npm run/pip install/python -m pip install；git log 禁 -p/--all；dir/type 限當前目錄。",
                 new
                 {
                     type = "object",
@@ -203,7 +203,6 @@ namespace OrchX.Agents
             // 使用 Regex 處理命令中可能出現的連續多餘空白
             string normalizedCmd = System.Text.RegularExpressions.Regex.Replace(cmdLower, @"\s+", " ");
 
-            // 允許的基礎指令前綴
             string[] allowedPrefixes = new[]
             {
                 "python ", "python.exe ", 
@@ -213,6 +212,7 @@ namespace OrchX.Agents
                 "dir ", 
                 "echo ", 
                 "type ", 
+                "move ", "del ", "ren ", "mkdir ", "rmdir ", "copy ", "rm ", "mv ", "cp ",
                 "git status", "git log"
             };
 
@@ -328,7 +328,7 @@ namespace OrchX.Agents
             {
                 // 取得指令的第一個單詞用於錯誤訊息提示
                 string baseCmd = normalizedCmd.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? normalizedCmd;
-                return $"此指令不在允許的白名單內 (嘗試執行的指令前綴: {baseCmd})。僅允許: python, pip, node, npm, dir, echo, type, git status/log 等安全指令。";
+                return $"此指令不在允許的白名單內 (嘗試執行的指令前綴: {baseCmd})。請參考功能說明中允許的系統指令。";
             }
 
             return null;

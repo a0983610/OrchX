@@ -84,35 +84,6 @@ namespace OrchX.Agents
                 }
             );
 
-            yield return client.CreateFunctionDeclaration(
-                "delete_file",
-                "【檔案系統：刪除檔案或資料夾】永久刪除檔案或是整個資料夾(限 AI_Workspace)。刪除後無法復原，請謹慎使用。",
-                new
-                {
-                    type = "object",
-                    properties = new
-                    {
-                        path = new { type = "string", description = "相對於 AI_Workspace 的檔案或資料夾路徑" },
-                        recursive = new { type = "boolean", description = "如果要刪除資料夾，是否連同裡面的所有檔案資源一併刪除。如果為 false 且資料夾不為空，會拒絕刪除 (預設為 false)" }
-                    },
-                    required = new[] { "path" }
-                }
-            );
-
-            yield return client.CreateFunctionDeclaration(
-                "move_file",
-                "【檔案系統：移動/重新命名檔案】變更單一檔案的路徑或名稱(限 AI_Workspace)。目標資料夾不存在自動建立，檔案已存在會被覆寫。",
-                new
-                {
-                    type = "object",
-                    properties = new
-                    {
-                        sourcePath = new { type = "string", description = "來源檔案路徑，相對於 AI_Workspace (例如 old/notes.txt)" },
-                        destinationPath = new { type = "string", description = "目標檔案路徑，相對於 AI_Workspace (例如 new/notes.txt)" }
-                    },
-                    required = new[] { "sourcePath", "destinationPath" }
-                }
-            );
 
             yield return client.CreateFunctionDeclaration(
                 "update_file_line",
@@ -159,10 +130,6 @@ namespace OrchX.Agents
                     return await HandleReadFileAsync(funcName, args);
                 case "write_file":
                     return HandleWriteFile(funcName, args);
-                case "delete_file":
-                    return HandleDeleteFile(funcName, args);
-                case "move_file":
-                    return HandleMoveFile(funcName, args);
                 case "update_file_line":
                     return HandleUpdateFileLine(funcName, args);
                 case "search_content":
@@ -276,23 +243,6 @@ namespace OrchX.Agents
                 append);
         }
 
-        private string HandleDeleteFile(string funcName, Dictionary<string, object> args)
-        {
-            string errDel = CheckRequiredArgs(funcName, args);
-            if (errDel != null) return errDel;
-
-            string targetPath = args["path"].ToString();
-            bool recursive = args.ContainsKey("recursive") && Convert.ToBoolean(args["recursive"]);
-            return _fileTools.DeleteFile(targetPath, recursive);
-        }
-
-        private string HandleMoveFile(string funcName, Dictionary<string, object> args)
-        {
-            string errMove = CheckRequiredArgs(funcName, args);
-            if (errMove != null) return errMove;
-
-            return _fileTools.MoveFile(args["sourcePath"].ToString(), args["destinationPath"].ToString());
-        }
 
         private string HandleUpdateFileLine(string funcName, Dictionary<string, object> args)
         {
