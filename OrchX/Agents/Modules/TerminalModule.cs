@@ -13,9 +13,11 @@ namespace OrchX.Agents
     {
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
         {
+            // 【系統：執行終端指令】
+            // 僅允許白名單指令，並具備嚴格的安全性過濾（禁止重定向、管線、連鎖指令等）。
             yield return client.CreateFunctionDeclaration(
                 "run_terminal_command",
-                "【系統：執行終端指令】僅允許白名單指令(python, pip, node, npm, npx, dir, echo, type, move, del, ren, mkdir, rmdir, git status/log)。禁用重新導向(><)、管線(|)、連鎖(&)、變數(%)及路徑穿越(..)。限制：npm install 須帶 --ignore-scripts；禁 npm run/pip install/python -m pip install；git log 禁 -p/--all；dir/type 限當前目錄。",
+                "Execute terminal commands. ONLY allowed: python, pip, node, npm, npx, dir, echo, type, move, del, ren, mkdir, rmdir, git status/log. RESTRICTIONS: No redirection (><), pipes (|), chaining (&), variables (%), or path jumping (..). 'npm install' must use '--ignore-scripts'. NO 'npm run' or 'pip install'. 'git log' no '-p/--all'. 'dir/type' limited to current directory.",
                 new
                 {
                     type = "object",
@@ -24,18 +26,18 @@ namespace OrchX.Agents
                         commands = new
                         {
                             type = "array",
-                            description = "要依序執行的 CMD 終端指令清單",
+                            description = "List of CMD terminal commands to execute in sequence",
                             items = new
                             {
                                 type = "object",
                                 properties = new
                                 {
-                                    command = new { type = "string", description = "要執行的 CMD 終端指令" },
-                                    reason = new { type = "string", description = "為什麼需要執行這項指令？" },
-                                    explanation = new { type = "string", description = "這項指令具體會做什麼？（詳細解釋指令參數與作用）" }
+                                    command = new { type = "string", description = "The CMD terminal command to execute" },
+                                    reason = new { type = "string", description = "Why do you need to execute this command?" },
+                                    explanation = new { type = "string", description = "What does this command specifically do? (Detailed explanation of parameters)" }
                                 },
                                 required = new[] { "command", "reason", "explanation" }
-                            }
+                             }
                         }
                     },
                     required = new[] { "commands" }

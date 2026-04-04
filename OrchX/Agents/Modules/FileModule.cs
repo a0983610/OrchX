@@ -31,28 +31,33 @@ namespace OrchX.Agents
 
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
         {
+            // 【檔案系統：列出目錄與檔案】
+            // 以樹狀結構列舉 AI_Workspace 內的路徑內容。
             yield return client.CreateFunctionDeclaration(
                 "list_files",
-                "【檔案系統：列出目錄與檔案】以樹狀結構列出指定路徑的內容。預設為根目錄(限制於 AI_Workspace 內，最多往下掃描 3 層子目錄)。",
+                "File System: List contents of a directory. Returns entries in a tree structure. Default is the root directory (restricted to AI_Workspace, scans up to 3 levels deep).",
                 new { type = "object", properties = new { 
-                    path = new { type = "string", description = "相對於 AI_Workspace 的資料夾路徑 (例如 / 或 notes)，留空代表根目錄" },
-                    sortByTime = new { type = "boolean", description = "是否依據修改時間(由新到舊)排序 (預設為 false，依檔名排序)" },
-                    filePattern = new { type = "string", description = "限制檔案類型過濾，例如 *.cs 或是 text*.txt" }
+                    path = new { type = "string", description = "Folder path relative to AI_Workspace (e.g., '/' or 'notes'). Empty string means root." },
+                    sortByTime = new { type = "boolean", description = "Whether to sort by modified time descending (Default: false, sorts by name)" },
+                    filePattern = new { type = "string", description = "Filter for file types, e.g., '*.cs' or 'text*.txt'" }
                 } }
             );
 
+            // 【檔案系統：讀取檔案或圖片】
+            // 支援讀取文字內容或進行圖片視覺解析 (isImage=true)。
+            // 對於大型檔案可帶入 summaryQuery 使用快速模型進行摘要。
             yield return client.CreateFunctionDeclaration(
                 "read_file",
-                "【檔案系統：讀取檔案或圖片】讀取文字檔或圖片。注意：若為圖片(isImage=true)，必須單獨呼叫本工具。讀取文字預設回傳完整內容。" + (_hasFastModel ? "若帶有 summaryQuery 將由快速模型先進行摘要。" : ""),
+                "File System: Read a text file or an image. Note: For images (isImage=true), this tool must be called alone. For text, it returns full content by default. Use summaryQuery for AI-assisted focus.",
                 _hasFastModel
                     ? (object)new
                     {
                         type = "object",
                         properties = new
                         {
-                            filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑" },
-                            summaryQuery = new { type = "string", description = "僅讀取符合此查詢的重點 (將觸發後端快速模型處理)" },
-                            isImage = new { type = "boolean", description = "是否作為圖片視覺解析 (為 true 時必須單獨呼叫本工具，不可包含其他函數)" }
+                            filePath = new { type = "string", description = "Path relative to AI_Workspace" },
+                            summaryQuery = new { type = "string", description = "Only read focal points matching this query (triggers fast AI model processing)" },
+                            isImage = new { type = "boolean", description = "Whether to parse as an image (Must be called alone if true)" }
                         },
                         required = new[] { "filePath" }
                     }
@@ -61,59 +66,64 @@ namespace OrchX.Agents
                         type = "object",
                         properties = new
                         {
-                            filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑" },
-                            isImage = new { type = "boolean", description = "是否作為圖片視覺解析 (為 true 時必須單獨呼叫本工具，不可包含其他函數)" }
+                            filePath = new { type = "string", description = "Path relative to AI_Workspace" },
+                            isImage = new { type = "boolean", description = "Whether to parse as an image (Must be called alone if true)" }
                         },
                         required = new[] { "filePath" }
                     }
             );
 
+            // 【檔案系統：寫入檔案】
+            // 建立、覆寫或附加內容。自動建立必要的父資料夾。
             yield return client.CreateFunctionDeclaration(
                 "write_file",
-                "【檔案系統：寫入檔案】建立、覆寫或附加內容至檔案。預設 append=true 附加於檔尾，若要完全覆寫請設為 false。自動遞迴建立不存在的資料夾(限 AI_Workspace)。",
+                "File System: Write to a file (Create, overwrite, or append). Default append=true. Automatically creates missing parent directories (within AI_Workspace).",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑 (例如 notes.txt)" },
-                        content = new { type = "string", description = "要寫入的字串內容" },
-                        append = new { type = "boolean", description = "true=附加到檔尾(預設); false=清空並覆蓋檔案" }
+                        filePath = new { type = "string", description = "Path relative to AI_Workspace (e.g., 'notes.txt')" },
+                        content = new { type = "string", description = "The string content to write" },
+                        append = new { type = "boolean", description = "true (default): append to end; false: overwrite entire file" }
                     },
                     required = new[] { "filePath", "content" }
                 }
             );
 
-
+            // 【檔案系統：單行更新】
+            // 精準修改指定行號 (1-based)。適合小型設定檔之微調。
             yield return client.CreateFunctionDeclaration(
                 "update_file_line",
-                "【檔案系統：單行更新】精準修改文字檔中的特定一行(1-based)。適合微調單一設定或小區塊，避免傳輸完整檔案。",
+                "File System: Single Line Update. Precisely modify a specific line (1-based index). Efficient for fine-tuning configuration or small blocks without sending the full file.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        filePath = new { type = "string", description = "相對於 AI_Workspace 的檔案路徑 (例如 notes.txt)" },
-                        lineNumber = new { type = "integer", description = "欲修改的絕對行號 (從 1 開始)" },
-                        newContent = new { type = "string", description = "用來替換此行的全新內容字串" }
+                        filePath = new { type = "string", description = "Path relative to AI_Workspace (e.g., 'settings.json')" },
+                        lineNumber = new { type = "integer", description = "The 1-based absolute line number to modify" },
+                        newContent = new { type = "string", description = "The replacement content for the line" }
                     },
                     required = new[] { "filePath", "lineNumber", "newContent" }
                 }
             );
 
+            // 【檔案系統：內容全局搜尋】
+            // 全域或特定目錄下的字串搜尋，支援正則表達式 (isRegex) 與上下行預覽。
             yield return client.CreateFunctionDeclaration(
                 "search_content",
-                "【檔案系統：內容全局搜尋】在文字檔中檢索特定字串或正則表達式(isRegex)。支援過濾路徑與副檔名，並可提供 contextLines 查看上下文。",
+                "File System: Global Content Search. Search for strings or Regex in text files. Supports path filtering and context preview.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        query = new { type = "string", description = "要搜尋的精確關鍵字或正則表達式字串" },
-                        path = new { type = "string", description = "搜尋範圍的子目錄，相對於 AI_Workspace (預設為空字串，代表全局搜索)" },
-                        filePattern = new { type = "string", description = "限制檔案類型，例如 *.cs 或 *.log" },
-                        contextLines = new { type = "integer", description = "除了找到的那行外，額外回傳它的上下行數量 (預設為 0)" },
-                        isRegex = new { type = "boolean", description = "是否將 query 視為正則表達式 (預設為 false)" }
+                        query = new { type = "string", description = "The exact keyword or regular expression to search for" },
+                        path = new { type = "string", description = "Subdirectory to search (Default: global workspace search)" },
+                        filePattern = new { type = "string", description = "Limit to file types, e.g., '*.cs' or '*.log'" },
+                        contextLines = new { type = "integer", description = "Number of lines of context to include before and after the match (Default: 0)" },
+                        isRegex = new { type = "boolean", description = "Whether to treat query as a regular expression (Default: false)" }
                     },
                     required = new[] { "query" }
                 }

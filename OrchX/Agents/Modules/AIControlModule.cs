@@ -9,7 +9,7 @@ using OrchX.UI;
 namespace OrchX.Agents
 {
     /// <summary>
-    /// 提供 AI 自我控制與調整的模組
+    /// 提供 AI 自我控制與調整的模組 (AI Self-Control and Refinement Module)
     /// </summary>
     public class AIControlModule : BaseAgentModule
     {
@@ -28,7 +28,9 @@ namespace OrchX.Agents
         {
             if (_hasDifferentFastModel && _agent != null)
             {
-                string description = "切換 AI 思考模式。可傳入 'smart' (聰明模式：適合複雜推理與程式碼撰寫) 或 'fast' (快速模式：適合簡單問答與初步整理)。完成切換後系統將會回傳最新的狀態。請根據接下來任務的複雜度，決定是否需要呼叫此工具進行切換。";
+                // 【工具：切換思考模式】
+                // 允許 AI 在 'smart' (高推理) 與 'fast' (高效能) 之間切換。
+                string description = "Switch the AI thinking mode. Pass 'smart' for complex reasoning and coding tasks, or 'fast' for simple Q&A and basic formatting. The system will return the updated status after switching. Use this tool if the upcoming task requires a different level of intelligence or speed.";
 
                 yield return client.CreateFunctionDeclaration(
                     "switch_model_mode",
@@ -38,32 +40,36 @@ namespace OrchX.Agents
                         type = "object",
                         properties = new
                         {
-                            mode = new { type = "string", description = "模式名稱 (smart 或 fast)", @enum = new[] { "smart", "fast" } }
+                            mode = new { type = "string", description = "Target mode: 'smart' (Reasoning) or 'fast' (Efficiency)", @enum = new[] { "smart", "fast" } }
                         },
                         required = new[] { "mode" }
                     }
                 );
             }
 
+            // 【工具：自我調整行為】
+            // AI 發現更好的策略時，提議更新『附加系統指令』(SystemInstruction.txt)。
             yield return client.CreateFunctionDeclaration(
                 "refine_my_behavior",
-                "當 AI 發現特定任務（如除錯、檔案處理）有更好的執行策略，或需要建立防止錯誤的檢查清單時呼叫此工具。它會向使用者提議更新『附加系統指令』以優化未來的表現。",
+                "Update personal system behavior instructions. Call this when you identify a better execution strategy or want to establish error-prevention checklists for specific tasks (like debugging or file handling). This proposes updates to the 'Additional System Instructions'.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        reason = new { type = "string", description = "為什麼需要調整指令？描述觀察到的問題或改進點。" },
-                        proposed_change = new { type = "string", description = "具體要新增或修改的指令內容。" },
-                        action = new { type = "string", description = "是要附加在現有指令後，還是完全替換。", @enum = new[] { "append", "replace" } }
+                        reason = new { type = "string", description = "Reason for the adjustment. Describe the observed problem or potential improvement." },
+                        proposed_change = new { type = "string", description = "Specific instruction content to be added or modified." },
+                        action = new { type = "string", description = "Whether to append to the existing instructions or replace them.", @enum = new[] { "append", "replace" } }
                     },
                     required = new[] { "reason", "proposed_change", "action" }
                 }
             );
 
+            // 【技能管理：讀取技能清單】
+            // 列出存放在 .agent/skills/ 下的所有可用 AI 技能工作流。
             yield return client.CreateFunctionDeclaration(
                 "read_skills",
-                "【技能管理：讀取技能清單】列出當前系統安裝的所有可用技能庫(位於 .agent/skills/)，回傳其結構化的名稱與功能描述。",
+                "Skill Management: List all available skill libraries (workflows) installed in the system (located in .agent/skills/). Returns their structured names and functional descriptions.",
                 new
                 {
                     type = "object",
@@ -72,43 +78,49 @@ namespace OrchX.Agents
                 }
             );
 
+            // 【技能管理：新增/覆寫技能】
+            // 將複雜流程封裝為標準 SOP，支援變數替換，存入 .agent/skills/。
             yield return client.CreateFunctionDeclaration(
                 "write_skill",
-                "【技能管理：新增/覆寫技能】建立 AI 專用技能工作流。自動建立資料夾與 YAML frontmatter，將複雜流程封裝為標準 SOP。支援 {{變數名稱}} 格式的簡單字串替換。",
+                "Skill Management: Create or overwrite an AI skill workflow. Automatically creates folders and YAML frontmatter to encapsulate complex processes into standard SOPs. Supports {{variable_name}} for simple string replacement.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        skillName = new { type = "string", description = "技能所在的資料夾簡稱，限英數與破折號 (例如 build-tool)" },
-                        name = new { type = "string", description = "技能的顯示名稱 (在 YAML frontmatter 中)" },
-                        description = new { type = "string", description = "一句話簡述該技能的觸發時機或作用 (在 YAML frontmatter 中)" },
-                        content = new { type = "string", description = "此技能具體的 Markdown 循序執行步驟與指令細節內容，可使用 {{變數名稱}} 建立佔位符。" },
-                        variables = new { type = "object", description = "選填。提供鍵值對作為變數，系統會在寫入前將 content 中的 {{key}} 替換為對應的 value。" }
+                        skillName = new { type = "string", description = "Short folder name for the skill (alphanumeric and dashes only, e.g., 'build-tool')" },
+                        name = new { type = "string", description = "Display name of the skill (in YAML frontmatter)" },
+                        description = new { type = "string", description = "One-sentence summary of when to use this skill (in YAML frontmatter)" },
+                        content = new { type = "string", description = "The detailed Markdown execution steps and instructions. Use {{variable}} for placeholders." },
+                        variables = new { type = "object", description = "Optional. Key-value pairs to replace {{key}} in the content during writing." }
                     },
                     required = new[] { "skillName", "name", "description", "content" }
                 }
             );
 
+            // 【知識庫：寫入筆記】
+            // 封存重要知識至 .agent/knowledge/，並自動更新 00_INDEX.md 索引。
             yield return client.CreateFunctionDeclaration(
                 "write_note",
-                "【知識庫：寫入筆記】封存重要知識。檔案會自動存入 .agent/knowledge/ 並自動維護 00_INDEX.md 索引，無須額外手動管理。",
+                "Knowledge Base: Write a permanent note. Files are automatically stored in .agent/knowledge/ and the master index (00_INDEX.md) is updated automatically.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        title = new { type = "string", description = "筆記相對檔名或路徑 (例如 React_Best_Practices.md 或 subfolder/note.md)" },
-                        description = new { type = "string", description = "簡短的內容實意摘要，這會被系統自動寫入 00_INDEX.md 中" },
-                        content = new { type = "string", description = "知識筆記的完整文字內容" }
+                        title = new { type = "string", description = "Relative filename or path for the note (e.g., 'React_Best_Practices.md' or 'subfolder/note.md')" },
+                        description = new { type = "string", description = "Short summary of the content to be recorded in 00_INDEX.md" },
+                        content = new { type = "string", description = "Full text content of the knowledge note." }
                     },
                     required = new[] { "title", "description", "content" }
                 }
             );
 
+            // 【知識庫：檢索索引】
+            // 查閱長期記憶庫的總目錄 (00_INDEX.md)，確認是否有相關模組或經驗。
             yield return client.CreateFunctionDeclaration(
                 "search_knowledge_index",
-                "【知識庫：檢索索引】快速查閱長期記憶庫的「總目錄」(00_INDEX.md)。建議在開始新任務前呼叫，確認是否有現成共用模組或曾踩過的坑。",
+                "Knowledge Base: Search the master index (00_INDEX.md) of the long-term memory. Recommended at the start of new tasks to identify existing modules or lessons learned.",
                 new
                 {
                     type = "object",

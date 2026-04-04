@@ -15,33 +15,37 @@ namespace OrchX.Agents
 
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
         {
+            // 【網路：HTTP GET】
+            // 發送 GET 請求獲取遠端資料。支援選填的 JSON Header。
             yield return client.CreateFunctionDeclaration(
                 "http_get",
-                "發送 HTTP GET 請求獲取資料。",
+                "Send an HTTP GET request to fetch data from a URL.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        url = new { type = "string", description = "目標 URL" },
-                        headers = new { type = "string", description = "選填，JSON 格式的 Header (例如: {\"Authorization\": \"Bearer ...\"})" }
+                        url = new { type = "string", description = "The target URL" },
+                        headers = new { type = "string", description = "Optional. JSON string representing request headers (e.g., '{\"Authorization\": \"Bearer ...\"}')" }
                     },
                     required = new[] { "url" }
                 }
             );
 
+            // 【網路：HTTP POST】
+            // 發送 POST 請求傳送內容。預設 Content-Type 為 application/json。
             yield return client.CreateFunctionDeclaration(
                 "http_post",
-                "發送 HTTP POST 請求傳送資料。",
+                "Send an HTTP POST request to submit data to a URL.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        url = new { type = "string", description = "目標 URL" },
-                        body = new { type = "string", description = "POST 內容 (通常是 JSON 字串)" },
-                        contentType = new { type = "string", description = "選填，預設為 application/json" },
-                        headers = new { type = "string", description = "選填，JSON 格式的 Header" }
+                        url = new { type = "string", description = "The target URL" },
+                        body = new { type = "string", description = "The content to send (typically a JSON string)" },
+                        contentType = new { type = "string", description = "Optional. Default: 'application/json'" },
+                        headers = new { type = "string", description = "Optional. JSON string representing request headers" }
                     },
                     required = new[] { "url", "body" }
                 }

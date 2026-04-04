@@ -32,42 +32,46 @@ namespace OrchX.Agents
 
         protected override IEnumerable<object> BuildToolDeclarations(IAIClient client)
         {
+            // 【多代理：諮詢專家】
+            // 建立或追問特定領域專家。支援同步與非同步(需 taskId 後續讀取)。
             yield return client.CreateFunctionDeclaration(
                 "consult_expert",
-                "諮詢一個特定領域的 AI 專家，支援多輪對話。使用相同的 expert_name 可延續先前的對話。\n" +
-                "首次建立專家時必須提供 role，之後追問只需 expert_name 和 question。\n" +
-                "目前活躍的專家列表會在回應中附帶提示。",
+                "Consult an AI expert in a specific field. Support multi-turn conversations. Use the same expert_name to continue a session. Role is required for the first call, optional for follow-ups.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        expert_name = new { type = "string", description = "專家的識別名稱 (例如 'security_expert', 'arch_expert')，用於多輪對話時識別同一位專家" },
-                        question = new { type = "string", description = "要問專家的具體問題或任務內容" },
-                        role = new { type = "string", description = "專家的角色設定與專業背景 (System Instruction)。首次建立專家時必填，後續追問可省略" },
-                        is_async = new { type = "boolean", description = "是否使用非同步背景執行。若任務可能耗時較長請設為 true，系統會立即回傳 TaskId；若需要立即知道答案請設為 false (預設)。" }
+                        expert_name = new { type = "string", description = "Identifier for the expert (e.g., 'security_expert', 'arch_expert')" },
+                        question = new { type = "string", description = "The specific question or task for the expert" },
+                        role = new { type = "string", description = "System Instruction for the expert. Required for new experts, optional for follow-ups." },
+                        is_async = new { type = "boolean", description = "If true, runs in background and returns a TaskId immediately. Set to true for time-consuming tasks." }
                     },
                     required = new[] { "expert_name", "question" }
                 }
             );
 
+            // 【多代理：讀取任務結果】
+            // 當非同步專家任務完成後，呼叫此工具獲取最終回傳內容。
             yield return client.CreateFunctionDeclaration(
                 "read_task_result",
-                "讀取非同步指派給專家的任務狀態與結果。當收到任務完成的通知時，必須呼叫此工具來獲取並核銷完整結果。",
+                "Read the status and result of an asynchronous expert task. Call this when notified that a task is completed to fetch the full response.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        taskId = new { type = "string", description = "任務編號" }
+                        taskId = new { type = "string", description = "The unique task identifier" }
                     },
                     required = new[] { "taskId" }
                 }
             );
 
+            // 【多代理：列出活躍專家】
+            // 查閱當前所有已建立且尚在運行的專家 Session。
             yield return client.CreateFunctionDeclaration(
                 "list_experts",
-                "列出目前所有活躍中的專家 Session，包含名稱、角色設定、對話輪數。",
+                "List all currently active expert sessions, including names, roles, and conversation turn counts.",
                 new
                 {
                     type = "object",
@@ -75,23 +79,27 @@ namespace OrchX.Agents
                 }
             );
 
+            // 【多代理：結束專家 Session】
+            // 銷毀特定專家的記憶並釋放資源。
             yield return client.CreateFunctionDeclaration(
                 "dismiss_expert",
-                "結束某位專家的 Session，釋放其對話歷史。",
+                "Terminate an expert session and release its conversation history.",
                 new
                 {
                     type = "object",
                     properties = new
                     {
-                        expert_name = new { type = "string", description = "要結束的專家識別名稱" }
+                        expert_name = new { type = "string", description = "Identification name of the expert to dismiss" }
                     },
                     required = new[] { "expert_name" }
                 }
             );
 
+            // 【多代理：等待所有任務】
+            // 當有多個背景任務執行中且主代理需暫停等待結果時呼叫。
             yield return client.CreateFunctionDeclaration(
                 "wait_all_tasks",
-                "當有非同步專家任務仍在執行，且目前沒有其他事情可以先做時，呼叫此工具等待所有專家任務完成。",
+                "Wait for all running asynchronous expert tasks to complete before proceeding.",
                 new
                 {
                     type = "object",
