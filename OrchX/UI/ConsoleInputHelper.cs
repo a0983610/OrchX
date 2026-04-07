@@ -33,17 +33,24 @@ namespace OrchX.UI
         }
 
         /// <summary>
-        /// 提供具備自動完成與指令提示功能的控制台輸入讀取機制
+        /// 將輸入字串正規化換行符號為 \n
+        /// </summary>
+        private static string NormalizeNewlines(string text)
+            => text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        /// <summary>
+        /// 提供具備自動完成與指令提示功能的控制台輸入讀取機制。
+        /// 支援 Ctrl+Enter 換行輸入，Enter 送出。
         /// </summary>
         public static string ReadConsoleInput(string[] availableCommands)
         {
             bool canUseInteractiveMenu = true;
-            try 
-            { 
+            try
+            {
                 if (Console.IsOutputRedirected || Console.IsInputRedirected)
                     canUseInteractiveMenu = false;
                 _ = Console.CursorTop; // Test if we can read CursorTop
-            } 
+            }
             catch { canUseInteractiveMenu = false; }
 
             if (!canUseInteractiveMenu)
@@ -56,15 +63,16 @@ namespace OrchX.UI
 
             try
             {
-                int requiredSpace = 8;
+                // 預留給多行輸入 + hint 的緩衝空間
+                const int reservedLines = 12;
                 int currentTop = Console.CursorTop;
                 int maxTopForBuffer = Console.BufferHeight - 1;
-                
+
                 int originalLeft = Console.CursorLeft;
                 // 確保底部有足夠空間，避免繪製 Hint 時視窗捲動導致 promptTop 失效
-                if (currentTop + requiredSpace > maxTopForBuffer)
+                if (currentTop + reservedLines > maxTopForBuffer)
                 {
-                    int linesToPush = (currentTop + requiredSpace) - maxTopForBuffer;
+                    int linesToPush = (currentTop + reservedLines) - maxTopForBuffer;
                     for (int i = 0; i < linesToPush; i++)
                     {
                         Console.WriteLine();
@@ -79,14 +87,19 @@ namespace OrchX.UI
                 int cursorIndex = 0;
                 int lastHintCount = 0;
                 const int maxHintDisplay = 5;
-                int maxDisplayWidth = Console.WindowWidth - promptLeft - 2; // 防止超出一行寬度
-                int previousInputWidth = 0;
 
-                void ClearHints()
+                // 記錄上一次繪製的行數，用來清除多出來的舊行
+                int prevLineCount = 1;
+
+                // 記錄每行上次繪製的寬度，用來精確補空白覆蓋刪除的字元
+                var prevLineWidths = new Dictionary<int, int>();
+
+                // ── 清除 Hint 列 ──
+                void ClearHints(int startRow)
                 {
                     for (int i = 0; i < lastHintCount; i++)
                     {
-                        int targetRow = promptTop + 1 + i;
+                        int targetRow = startRow + i;
                         if (targetRow >= Console.BufferHeight) break;
                         Console.SetCursorPosition(0, targetRow);
                         Console.Write(new string(' ', Console.WindowWidth - 1));
@@ -94,26 +107,60 @@ namespace OrchX.UI
                     lastHintCount = 0;
                 }
 
+                // ── 繪製輸入區 ──
+                void DrawInput(string[] lines)
+                {
+                    int windowWidth = Console.WindowWidth;
+
+                    // 若行數減少，先清除多餘的舊行
+                    for (int i = lines.Length; i < prevLineCount; i++)
+                    {
+                        int row = promptTop + i;
+                        if (row >= Console.BufferHeight) break;
+                        Console.SetCursorPosition(0, row);
+                        Console.Write(new string(' ', windowWidth - 1));
+                        prevLineWidths.Remove(i);
+                    }
+
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        int row = promptTop + i;
+                        if (row >= Console.BufferHeight) break;
+
+                        int colStart = (i == 0) ? promptLeft : 0;
+                        int lineDisplayWidth = GetDisplayWidth(lines[i]);
+
+                        // 計算需要補多少空白才能覆蓋上次比較長的殘字
+                        int prevWidth = prevLineWidths.TryGetValue(i, out int pw) ? pw : 0;
+                        int padding = Math.Max(0, prevWidth - lineDisplayWidth);
+                        // 同時確保不會超出視窗寬度
+                        int maxPadding = windowWidth - colStart - lineDisplayWidth - 1;
+                        padding = Math.Min(padding, Math.Max(0, maxPadding));
+
+                        Console.SetCursorPosition(colStart, row);
+                        Console.Write(lines[i] + new string(' ', padding));
+
+                        prevLineWidths[i] = lineDisplayWidth;
+                    }
+
+                    prevLineCount = lines.Length;
+                }
+
                 while (true)
                 {
                     try { Console.CursorVisible = false; } catch { }
 
-                    string currentInputStr = input.ToString();
-                    int currentStrWidth = GetDisplayWidth(currentInputStr);
-                    int padSpaces = Math.Max(2, previousInputWidth - currentStrWidth + 2);
+                    string normalized = NormalizeNewlines(input.ToString());
+                    string[] lines = normalized.Split('\n');
 
-                    // Draw input line
-                    Console.SetCursorPosition(promptLeft, promptTop);
-                    Console.Write(currentInputStr + new string(' ', padSpaces)); 
-                    previousInputWidth = currentStrWidth;
+                    DrawInput(lines);
 
-                    string currentInput = currentInputStr;
+                    // ── 指令自動完成建議（只看第一行） ──
+                    string firstLine = lines[0];
                     var suggestions = new List<string>();
-                    
-                    // 只有輸入至少 2 個字元（如 /s）才開始提示，避免輸入 / 時顯示全部指令
-                    if (currentInput.StartsWith("/") && currentInput.Length >= 2)
+                    if (firstLine.StartsWith("/") && firstLine.Length >= 2)
                     {
-                        string cmdPart = currentInput.Split(' ')[0].ToLower();
+                        string cmdPart = firstLine.Split(' ')[0].ToLower();
                         foreach (var cmd in availableCommands)
                         {
                             if (cmd.StartsWith(cmdPart) && cmd != cmdPart)
@@ -124,15 +171,16 @@ namespace OrchX.UI
                         }
                     }
 
-                    ClearHints();
-                    
+                    int hintStartRow = promptTop + lines.Length;
+                    ClearHints(hintStartRow);
+
                     lastHintCount = suggestions.Count;
                     if (suggestions.Count > 0)
                     {
                         Console.ForegroundColor = ConsoleColor.DarkGray;
                         for (int i = 0; i < suggestions.Count; i++)
                         {
-                            int targetRow = promptTop + 1 + i;
+                            int targetRow = hintStartRow + i;
                             if (targetRow >= Console.BufferHeight) break;
                             Console.SetCursorPosition(0, targetRow);
                             Console.Write("  Hint: " + suggestions[i] + " (按 Tab 自動完成)");
@@ -140,16 +188,43 @@ namespace OrchX.UI
                         Console.ResetColor();
                     }
 
-                    Console.SetCursorPosition(promptLeft + GetDisplayWidth(currentInputStr, cursorIndex), promptTop);
+                    // ── 計算並設置游標位置 ──
+                    string beforeCursor = NormalizeNewlines(input.ToString().Substring(0, cursorIndex));
+                    string[] cursorLines = beforeCursor.Split('\n');
+                    int cursorRow = promptTop + cursorLines.Length - 1;
+                    int colOffset = (cursorLines.Length == 1) ? promptLeft : 0;
+                    int cursorCol = colOffset + GetDisplayWidth(cursorLines.Last());
+
+                    if (cursorRow < Console.BufferHeight)
+                        Console.SetCursorPosition(Math.Min(cursorCol, Console.WindowWidth - 1), cursorRow);
 
                     try { Console.CursorVisible = originalCursorVisible; } catch { }
 
+                    // ── 讀取按鍵 ──
                     var keyInfo = Console.ReadKey(intercept: true);
+
                     if (keyInfo.Key == ConsoleKey.Enter)
                     {
-                        ClearHints();
-                        Console.WriteLine();
-                        break;
+                        if (keyInfo.Modifiers.HasFlag(ConsoleModifiers.Control))
+                        {
+                            // Ctrl+Enter：插入換行
+                            input.Insert(cursorIndex, '\n');
+                            cursorIndex++;
+                        }
+                        else
+                        {
+                            // Enter：送出，將游標移到最後一行再輸出換行
+                            string finalNorm = NormalizeNewlines(input.ToString());
+                            int finalLineCount = finalNorm.Split('\n').Length;
+                            int finalRow = promptTop + finalLineCount - 1;
+
+                            ClearHints(promptTop + finalLineCount);
+
+                            if (finalRow < Console.BufferHeight)
+                                Console.SetCursorPosition(0, finalRow);
+                            Console.WriteLine();
+                            break;
+                        }
                     }
                     else if (keyInfo.Key == ConsoleKey.Backspace)
                     {
@@ -176,11 +251,17 @@ namespace OrchX.UI
                     }
                     else if (keyInfo.Key == ConsoleKey.Home)
                     {
-                        cursorIndex = 0;
+                        // 移至目前行首
+                        string bc = NormalizeNewlines(input.ToString().Substring(0, cursorIndex));
+                        int lastNl = bc.LastIndexOf('\n');
+                        cursorIndex = (lastNl < 0) ? 0 : lastNl + 1;
                     }
                     else if (keyInfo.Key == ConsoleKey.End)
                     {
-                        cursorIndex = input.Length;
+                        // 移至目前行尾
+                        string norm = NormalizeNewlines(input.ToString());
+                        int fromCursor = norm.IndexOf('\n', cursorIndex);
+                        cursorIndex = (fromCursor < 0) ? input.Length : fromCursor;
                     }
                     else if (keyInfo.Key == ConsoleKey.Tab)
                     {
@@ -198,17 +279,81 @@ namespace OrchX.UI
                         input.Clear();
                         cursorIndex = 0;
                     }
+                    else if (keyInfo.Key == ConsoleKey.UpArrow)
+                    {
+                        // 多行時：移至上一行的相同列位；單行時：無動作（TODO: 歷史紀錄）
+                        string norm = NormalizeNewlines(input.ToString());
+                        string[] allLines = norm.Split('\n');
+                        string bc = NormalizeNewlines(input.ToString().Substring(0, cursorIndex));
+                        string[] bcLines = bc.Split('\n');
+                        int currLineIdx = bcLines.Length - 1;
+
+                        if (currLineIdx > 0)
+                        {
+                            int currentColWidth = GetDisplayWidth(bcLines.Last());
+                            int prevLineIdx = currLineIdx - 1;
+
+                            // 計算上一行起點在 StringBuilder 中的 index
+                            int lineStart = 0;
+                            for (int i = 0; i < prevLineIdx; i++)
+                                lineStart += allLines[i].Length + 1; // +1 for '\n'
+
+                            // 嘗試保持相同的水平顯示位置
+                            int targetColWidth = Math.Min(currentColWidth, GetDisplayWidth(allLines[prevLineIdx]));
+                            int idx = lineStart;
+                            int w = 0;
+                            for (int i = 0; i < allLines[prevLineIdx].Length; i++)
+                            {
+                                int cw = GetDisplayWidth(allLines[prevLineIdx][i].ToString());
+                                if (w + cw > targetColWidth) break;
+                                w += cw;
+                                idx++;
+                            }
+                            cursorIndex = idx;
+                        }
+                    }
+                    else if (keyInfo.Key == ConsoleKey.DownArrow)
+                    {
+                        // 多行時：移至下一行的相同列位；單行時：無動作（TODO: 歷史紀錄）
+                        string norm = NormalizeNewlines(input.ToString());
+                        string[] allLines = norm.Split('\n');
+                        string bc = NormalizeNewlines(input.ToString().Substring(0, cursorIndex));
+                        string[] bcLines = bc.Split('\n');
+                        int currLineIdx = bcLines.Length - 1;
+
+                        if (currLineIdx < allLines.Length - 1)
+                        {
+                            int currentColWidth = GetDisplayWidth(bcLines.Last());
+                            int nextLineIdx = currLineIdx + 1;
+
+                            // 計算下一行起點在 StringBuilder 中的 index
+                            int lineStart = 0;
+                            for (int i = 0; i <= currLineIdx; i++)
+                                lineStart += allLines[i].Length + 1; // +1 for '\n'
+
+                            // 嘗試保持相同的水平顯示位置
+                            int targetColWidth = Math.Min(currentColWidth, GetDisplayWidth(allLines[nextLineIdx]));
+                            int idx = lineStart;
+                            int w = 0;
+                            for (int i = 0; i < allLines[nextLineIdx].Length; i++)
+                            {
+                                int cw = GetDisplayWidth(allLines[nextLineIdx][i].ToString());
+                                if (w + cw > targetColWidth) break;
+                                w += cw;
+                                idx++;
+                            }
+                            cursorIndex = idx;
+                        }
+                    }
                     else if (!char.IsControl(keyInfo.KeyChar))
                     {
-                        if (currentStrWidth + GetDisplayWidth(keyInfo.KeyChar.ToString()) <= maxDisplayWidth)
-                        {
-                            input.Insert(cursorIndex, keyInfo.KeyChar);
-                            cursorIndex++;
-                        }
+                        input.Insert(cursorIndex, keyInfo.KeyChar);
+                        cursorIndex++;
                     }
                 }
 
-                return input.ToString().Trim();
+                // 回傳時只 TrimEnd 換行，保留使用者有意輸入的內容結構
+                return NormalizeNewlines(input.ToString()).TrimEnd('\n').Trim();
             }
             catch
             {
