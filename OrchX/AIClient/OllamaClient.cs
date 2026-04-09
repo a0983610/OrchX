@@ -113,22 +113,11 @@ namespace OrchX.AIClient
         public System.Collections.ArrayList ExtractResponseParts(Dictionary<string, object> data, out Dictionary<string, object> modelContent)
         {
             modelContent = null;
-            if (data == null || !data.ContainsKey("message")) return null;
-            
-            var msgObj = data["message"];
-            Dictionary<string, object> msg = null;
-            
-            if (msgObj is Dictionary<string, object> d) 
-            {
-                msg = d;
-            }
-            else
-            {
-                string s = JsonTools.Serialize(msgObj);
-                msg = JsonTools.Deserialize<Dictionary<string, object>>(s);
-            }
+            if (data == null) return null;
 
-            if (msg == null) return null;
+            string jsonResponse = JsonTools.Serialize(data);
+            var unifiedResponse = AIResponseConverter.ToUnifiedResponse(jsonResponse, "ollama");
+            if (unifiedResponse == null) return null;
 
             modelContent = new Dictionary<string, object>
             {
@@ -137,68 +126,38 @@ namespace OrchX.AIClient
 
             var parts = new System.Collections.ArrayList();
 
-            if (msg.ContainsKey("content") && msg["content"] != null)
+            if (!string.IsNullOrEmpty(unifiedResponse.Content))
             {
-                string text = msg["content"].ToString();
-                if (!string.IsNullOrEmpty(text))
-                {
-                    parts.Add(new Dictionary<string, object> { { "text", text } });
-                }
+                parts.Add(new Dictionary<string, object> { { "text", unifiedResponse.Content } });
             }
 
-            if (msg.ContainsKey("tool_calls") && msg["tool_calls"] is System.Collections.IEnumerable toolCalls)
+            if (unifiedResponse.ToolCalls != null)
             {
-                foreach (var tcObj in toolCalls)
+                foreach (var tc in unifiedResponse.ToolCalls)
                 {
-                    string tcString = JsonTools.Serialize(tcObj);
-                    var tc = JsonTools.Deserialize<Dictionary<string, object>>(tcString);
-                    if (tc != null && tc.ContainsKey("function") && tc["function"] is Dictionary<string, object> func)
+                    var functionCall = new Dictionary<string, object>
                     {
-                        var rawArgs = func.ContainsKey("arguments") ? func["arguments"] : null;
-                        var parsedArgs = new Dictionary<string, object>();
-                        if (rawArgs is Dictionary<string, object> dictArgs)
-                        {
-                            parsedArgs = dictArgs;
-                        }
-                        else if (rawArgs is string strArgs && !string.IsNullOrWhiteSpace(strArgs))
-                        {
-                            try { parsedArgs = JsonTools.Deserialize<Dictionary<string, object>>(strArgs) ?? new Dictionary<string, object>(); } catch { }
-                        }
-
-                        var functionCall = new Dictionary<string, object>
-                        {
-                            { "functionCall", new Dictionary<string, object>
-                                {
-                                    { "name", func.ContainsKey("name") ? func["name"] : "" },
-                                    { "args", parsedArgs }
-                                }
+                        { "functionCall", new Dictionary<string, object>
+                            {
+                                { "name", tc.FunctionName },
+                                { "args", tc.Arguments ?? new Dictionary<string, object>() }
                             }
-                        };
-                        parts.Add(functionCall);
-                    }
+                        }
+                    };
+                    parts.Add(functionCall);
                 }
             }
 
             modelContent["parts"] = parts;
-
             return parts;
         }
 
         public string ExtractTextFromResponseData(Dictionary<string, object> data)
         {
-            var parts = ExtractResponseParts(data, out _);
-            if (parts != null && parts.Count > 0)
-            {
-                foreach(var part in parts)
-                {
-                    var dictPart = part as Dictionary<string, object>;
-                    if (dictPart != null && dictPart.ContainsKey("text"))
-                    {
-                        return dictPart["text"]?.ToString();
-                    }
-                }
-            }
-            return null;
+            if (data == null) return null;
+            string jsonResponse = JsonTools.Serialize(data);
+            var unifiedResponse = AIResponseConverter.ToUnifiedResponse(jsonResponse, "ollama");
+            return unifiedResponse?.Content;
         }
 
         public object[] DefineTools(params object[] functionDeclarations)
@@ -232,16 +191,14 @@ namespace OrchX.AIClient
 
         public (int promptTokens, int candidateTokens, int totalTokens) ExtractTokenUsage(Dictionary<string, object> data)
         {
-            int promptTokens = 0, candidateTokens = 0, totalTokens = 0;
-            if (data == null) return (promptTokens, candidateTokens, totalTokens);
-
-            if (data.ContainsKey("prompt_eval_count"))
-                promptTokens = Convert.ToInt32(data["prompt_eval_count"]);
-            if (data.ContainsKey("eval_count"))
-                candidateTokens = Convert.ToInt32(data["eval_count"]);
-            
-            totalTokens = promptTokens + candidateTokens;
-            return (promptTokens, candidateTokens, totalTokens);
+            if (data == null) return (0, 0, 0);
+            string jsonResponse = JsonTools.Serialize(data);
+            var unifiedResponse = AIResponseConverter.ToUnifiedResponse(jsonResponse, "ollama");
+            if (unifiedResponse?.Usage != null)
+            {
+                return (unifiedResponse.Usage.PromptTokens, unifiedResponse.Usage.CandidateTokens, unifiedResponse.Usage.TotalTokens);
+            }
+            return (0, 0, 0);
         }
 
         public async Task<(bool hasFunctionCall, List<object> toolResponseParts)> ProcessModelPartsAsync(
