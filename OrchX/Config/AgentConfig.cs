@@ -105,6 +105,16 @@ Your current session state is ephemeral. You MUST immediately write critical pro
             return baseInstruction + additionalInstruction;
         }
 
+        public static string GetHistoryCompressionPrompt(string jsonToCompress)
+        {
+            return "請將以下歷史對話紀錄進行詳細摘要，保留重要的上下文、決策過程、變數設定與關鍵資訊。\n" +
+                   "此外，如果有任何明確的、未來可能會用到的確切資訊（例如特定的路徑、命令、設定值、剛剛確定的規則），請將這些明確資訊獨立列出。\n" +
+                   "請嚴格使用以下 XML 標籤格式輸出：\n" +
+                   "<Summary>\n你的摘要內容\n</Summary>\n" +
+                   "<Knowledge>\n明確資訊（條列式）\n</Knowledge>\n\n" +
+                   "歷史對話紀錄如下：\n" + jsonToCompress;
+        }
+
         private static string GetAdditionalInstructionFromFile()
         {
             try
