@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 using OrchX.Tools;
 using OrchX.UI;
+using OrchX.AIClient.Converters;
+using OrchX.AIClient.Models;
 
 namespace OrchX.AIClient
 {

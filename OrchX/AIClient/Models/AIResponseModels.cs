@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace OrchX.AIClient
+namespace OrchX.AIClient.Models
 {
     /// <summary>
     /// 定義統一的模型回應資料結構

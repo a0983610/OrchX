@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using System.Text;
 using OrchX.Tools;
+using OrchX.AIClient.Models;
 
-namespace OrchX.AIClient
+namespace OrchX.AIClient.Converters
 {
     /// <summary>
     /// 提供 AI 請求格式之間的轉換處理

@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using OrchX.Tools;
+using OrchX.AIClient.Models;
 
-namespace OrchX.AIClient
+namespace OrchX.AIClient.Converters
 {
     /// <summary>
     /// 提供 AI 模型回應字串至統一模型結構的轉換處理

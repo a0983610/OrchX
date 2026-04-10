@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace OrchX.AIClient
+namespace OrchX.AIClient.Models
 {
     /// <summary>
     /// Gemini 及預設 Agent 所使用的請求格式

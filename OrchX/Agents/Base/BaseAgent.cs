@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 using OrchX.AIClient;
+using OrchX.AIClient.Models;
 using OrchX.Config;
 using OrchX.Tools;
 using OrchX.UI;
@@ -102,6 +103,7 @@ namespace OrchX.Agents
             bool continueLoop = true;
             int currentIteration = 0;
             const int maxIterations = 30;
+            int accumulatedTokensThisTurn = 0;
 
             while (continueLoop && currentIteration < maxIterations)
             {
@@ -120,7 +122,8 @@ namespace OrchX.Agents
 
                     var data = JsonTools.Deserialize<Dictionary<string, object>>(rawJson);
 
-                    await HandleTokenUsageAsync(data, currentModelName, sw.ElapsedMilliseconds, ui, cancellationToken);
+                    int currentTokens = await HandleTokenUsageAsync(data, currentModelName, sw.ElapsedMilliseconds, ui, cancellationToken);
+                    accumulatedTokensThisTurn += currentTokens;
 
                     var parts = Client.ExtractResponseParts(data, out var modelContent);
                     if (parts == null) break;
@@ -223,7 +226,7 @@ namespace OrchX.Agents
         /// <summary>
         /// 處理並記錄 API 的 Token 使用量，若超過閾值則觸發歷史紀錄壓縮。
         /// </summary>
-        private async Task HandleTokenUsageAsync(Dictionary<string, object> data, string modelName, long elapsedMs, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
+        private async Task<int> HandleTokenUsageAsync(Dictionary<string, object> data, string modelName, long elapsedMs, IAgentUI ui, System.Threading.CancellationToken cancellationToken = default)
         {
             var (promptTokens, candidateTokens, totalTokens) = Client.ExtractTokenUsage(data);
             UsageLogger.LogApiUsage(modelName, elapsedMs, promptTokens, candidateTokens, totalTokens);
@@ -232,6 +235,8 @@ namespace OrchX.Agents
             {
                 await CompressHistoryAsync(ui, cancellationToken);
             }
+
+            return totalTokens;
         }
 
         /// <summary>
