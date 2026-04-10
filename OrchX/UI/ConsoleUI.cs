@@ -96,7 +96,7 @@ namespace OrchX.UI
             int startTop = Console.CursorTop;
             bool cursorVisible = true;
             
-            try { cursorVisible = Console.CursorVisible; Console.CursorVisible = false; } catch { }
+            try { if (OperatingSystem.IsWindows()) { cursorVisible = Console.CursorVisible; Console.CursorVisible = false; } } catch { }
 
             int windowWidth = 80;
             try { windowWidth = Console.WindowWidth - 1; if (windowWidth < 1) windowWidth = 80; } catch { }
@@ -168,7 +168,7 @@ namespace OrchX.UI
             }
             finally
             {
-                try { Console.CursorVisible = cursorVisible; } catch { }
+                try { if (OperatingSystem.IsWindows()) { Console.CursorVisible = cursorVisible; } } catch { }
             }
         }
     }

@@ -59,7 +59,7 @@ namespace OrchX.UI
             }
 
             bool originalCursorVisible = true;
-            try { originalCursorVisible = Console.CursorVisible; } catch { }
+            try { if (OperatingSystem.IsWindows()) { originalCursorVisible = Console.CursorVisible; } } catch { }
 
             try
             {
@@ -148,7 +148,7 @@ namespace OrchX.UI
 
                 while (true)
                 {
-                    try { Console.CursorVisible = false; } catch { }
+                    try { if (OperatingSystem.IsWindows()) { Console.CursorVisible = false; } } catch { }
 
                     string normalized = NormalizeNewlines(input.ToString());
                     string[] lines = normalized.Split('\n');
@@ -198,7 +198,7 @@ namespace OrchX.UI
                     if (cursorRow < Console.BufferHeight)
                         Console.SetCursorPosition(Math.Min(cursorCol, Console.WindowWidth - 1), cursorRow);
 
-                    try { Console.CursorVisible = originalCursorVisible; } catch { }
+                    try { if (OperatingSystem.IsWindows()) { Console.CursorVisible = originalCursorVisible; } } catch { }
 
                     // ── 讀取按鍵 ──
                     var keyInfo = Console.ReadKey(intercept: true);
@@ -362,7 +362,7 @@ namespace OrchX.UI
             }
             finally
             {
-                try { Console.CursorVisible = originalCursorVisible; } catch { }
+                try { if (OperatingSystem.IsWindows()) { Console.CursorVisible = originalCursorVisible; } } catch { }
             }
         }
     }
